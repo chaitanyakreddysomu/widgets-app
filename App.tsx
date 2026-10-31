@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import React, { useRef, useState } from 'react';
-=======
 import React, { useEffect, useRef, useState } from 'react';
->>>>>>> origin/master
 import {
   Alert, Animated, Easing, Modal, Platform, StatusBar, TextInput, View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions,
 } from 'react-native';
@@ -13,21 +9,6 @@ import * as Battery from 'expo-battery';
 import { File, Paths } from 'expo-file-system';
 import { NativeModules } from 'react-native';
 
-<<<<<<< HEAD
-type Widget = { id: string; title: string; subtitle: string; type: string; icon: string; accent: string; label: string };
-const widgets: Widget[] = [
-  { id: 'clock-analog', title: 'Quiet Face', subtitle: 'An analog clock for your home screen', type: 'Clock', icon: '◷', accent: '#D7F36A', label: 'Analog' },
-  { id: 'clock-digital', title: 'Soft Hours', subtitle: 'A clear digital clock at a glance', type: 'Clock', icon: '◷', accent: '#D7F36A', label: '09:41' },
-  { id: 'health-sleep', title: 'Rest Report', subtitle: 'Last night’s sleep from Health', type: 'Health', icon: '☾', accent: '#B8A5FF', label: 'Sleep' },
-  { id: 'health-steps', title: 'Step Count', subtitle: 'Today’s steps from Health', type: 'Health', icon: '⌁', accent: '#88D5C3', label: 'Steps' },
-  { id: 'weather', title: 'Daylight', subtitle: 'A little forecast, a lot of sky', type: 'Weather', icon: '☼', accent: '#D8B8FF', label: '24°' },
-  { id: 'battery', title: 'Power Check', subtitle: 'Your current battery level', type: 'Battery', icon: '▰', accent: '#D7F36A', label: 'Battery' },
-  { id: 'calendar', title: 'One Thing Today', subtitle: 'Choose one event from your calendar', type: 'Calendar', icon: '▦', accent: '#88D5C3', label: 'Select event' },
-  { id: 'music', title: 'Now Playing', subtitle: 'A compact music widget', type: 'Music', icon: '♫', accent: '#FFAE91', label: 'Music' },
-  { id: 'storage', title: 'Space Check', subtitle: 'Used, available, and total storage', type: 'Storage', icon: '◫', accent: '#85C8E8', label: 'Storage' },
-];
-const categories = ['All widgets', 'Clock', 'Health', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage'];
-=======
 type Widget = { id: string; title: string; subtitle: string; type: string; icon: string; accent: string; label: string; style: string };
 const analogFaces = ['Classic numerals', 'Minimal ticks', 'Full numerals', 'Dot markers', 'Heart markers', 'Skeleton', 'Roman numerals', 'Railway markers', '24-hour numerals', 'Sector dial', 'Bauhaus', 'California dial', 'Pilot Type A', 'Pilot Type B', 'Regulator', 'Chronograph'];
 const digitalFaces = ['Clean digital', 'Bold display', 'Stacked date', 'Flip style', 'Soft glow', 'Compact', 'LED segments', 'Split-flap', 'Railway display', 'Large display', 'Matrix', 'Date strip', 'Tall stack', 'Mono', 'Color split', 'Simple seconds'];
@@ -78,7 +59,6 @@ const widgets: Widget[] = [
 const categories = ['All widgets', 'Clock Analog', 'Clock Digital', 'Health', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage'];
 const widgetTypes = ['Clock', 'Health', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage', 'Text'];
 const scratchWidget: Widget = { id: 'custom', title: 'Your widget', subtitle: 'Start with a blank canvas', type: 'Custom', icon: '✦', accent: '#D7F36A', label: 'Make it yours', style: 'Blank' };
->>>>>>> origin/master
 const tabs = [
   { name: 'Widgets', icon: '▦' },
   { name: 'Customize', icon: '☷' },
@@ -86,12 +66,6 @@ const tabs = [
 ] as const;
 type TabName = (typeof tabs)[number]['name'];
 type LayoutMode = 'Fixed' | 'Adaptive';
-<<<<<<< HEAD
-type WidgetShape = 'Rounded' | 'Circle' | 'Square' | 'Pill';
-type WidgetTheme = 'Liquid Glass' | 'Solid Color' | 'Gradient';
-type ColorKey = 'background' | 'border' | 'icon' | 'value' | 'title' | 'subtitle' | 'meta';
-type WidgetColors = Record<ColorKey, string>;
-=======
 type WidgetShape = 'Rounded' | 'Circle' | 'Square' | 'Pill' | 'Squircle' | 'Cut corner' | 'Diamond' | 'Heart' | 'Arch' | 'Hexagon';
 type WidgetTheme = 'Liquid Glass' | 'Solid Color' | 'Gradient';
 type ColorKey = 'background' | 'border' | 'icon' | 'value' | 'title' | 'subtitle' | 'meta';
@@ -99,7 +73,6 @@ type WidgetColors = Record<ColorKey, string>;
 type ClockColorKey = 'hour' | 'minute' | 'second' | 'separator';
 type ClockHandColors = Record<ClockColorKey, string>;
 const defaultClockHandColors: ClockHandColors = { hour: '#D7F36A', minute: '#F1EFE7', second: '#FF796D', separator: '#F1EFE7' };
->>>>>>> origin/master
 type HealthApi = typeof import('@appeeky/expo-healthkit');
 const getHealthApi = () => require('@appeeky/expo-healthkit') as HealthApi;
 type NativeWidget = {
@@ -107,12 +80,6 @@ type NativeWidget = {
     title: string; subtitle: string; value: string; accent: string; icon: string; size: string; widgetKind: string; monthTitle: string; monthRows: string[];
     layoutMode: LayoutMode; widthCells: number; heightCells: number; shape: WidgetShape; theme: WidgetTheme;
     colors: WidgetColors; positions: { iconX: number; iconY: number; textX: number; textY: number }; gradientEnd: string;
-<<<<<<< HEAD
-  }) => void;
-};
-type StudioNative = { pinWidget: (name: string) => Promise<boolean>; installApk: (path: string) => Promise<void>; getBuildVersion: () => Promise<string>; };
-const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
-=======
     clockMode: string; timeFormat: string; showSeconds: boolean; showPeriod: boolean; clockStyle: string; stepStyle: string; stepGoal: number;
     clockZone: string; secondClockZone: string; showSecondClock: boolean;
     clockHandColors: ClockHandColors; analogClockStyle: string; digitalClockStyle: string;
@@ -122,7 +89,6 @@ type NativeWidgetModule = { widgetSlots: Record<string, NativeWidget> };
 type StudioNative = { pinWidget: (name: string) => Promise<boolean>; getAvailableWidgetSlot: (names: string[]) => Promise<string | null>; installApk: (path: string) => Promise<void>; getBuildVersion: () => Promise<string>; };
 const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
 const widgetSlotNames = ['StudioWidget', ...Array.from({ length: 11 }, (_, index) => `StudioWidget${index + 2}`)];
->>>>>>> origin/master
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes < 0) return 'Unknown';
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
@@ -155,8 +121,6 @@ const colorLabels: { key: ColorKey; label: string }[] = [
   { key: 'title', label: 'Title' },
   { key: 'subtitle', label: 'Subtitle' },
 ];
-<<<<<<< HEAD
-=======
 const colorPalette = [
   '#FFFFFF', '#D9D9D9', '#A6A6A6', '#636366', '#303030', '#000000',
   '#FF3B30', '#FF6B35', '#FF9500', '#FFC400', '#D7F36A', '#8BC34A',
@@ -165,18 +129,13 @@ const colorPalette = [
   '#ECF5A0', '#B9E5C4', '#A7E8E8', '#B6DCFA', '#C6C5FA', '#E4C3FA',
   '#FAB8D0', '#C4A484',
 ];
->>>>>>> origin/master
 
 export default function App() {
   return <SafeAreaProvider><WidgetStudio /></SafeAreaProvider>;
 }
 
 function WidgetStudio() {
-<<<<<<< HEAD
-  const [selected, setSelected] = useState(widgets[0]);
-=======
   const [selected, setSelected] = useState(scratchWidget);
->>>>>>> origin/master
   const [category, setCategory] = useState('All widgets');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('Adaptive');
   const [fixedWidth, setFixedWidth] = useState(3);
@@ -204,8 +163,6 @@ function WidgetStudio() {
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'current' | 'error' | 'downloading'>('idle');
   const [updateUrl, setUpdateUrl] = useState('');
   const [updateVersion, setUpdateVersion] = useState('');
-<<<<<<< HEAD
-=======
   const [clockMode, setClockMode] = useState('Analog');
   const [timeFormat, setTimeFormat] = useState<'12-hour' | '24-hour'>('12-hour');
   const [showSeconds, setShowSeconds] = useState(true);
@@ -220,23 +177,10 @@ function WidgetStudio() {
   const [stepGoal, setStepGoal] = useState(10000);
   const [stepStyle, setStepStyle] = useState('Step ring');
   const [healthMetric, setHealthMetric] = useState<'Steps' | 'Sleep'>('Steps');
->>>>>>> origin/master
   const activePosition = useRef(new Animated.Value(0)).current;
   const pageOpacity = useRef(new Animated.Value(1)).current;
   const pageOffset = useRef(new Animated.Value(0)).current;
   const { width } = useWindowDimensions();
-<<<<<<< HEAD
-  const cardWidth = (width - 52) / 2;
-  const filtered = category === 'All widgets' ? widgets : widgets.filter((w) => w.type === category);
-  const sizeLabel = layoutMode === 'Adaptive' ? 'Adaptive' : `${fixedWidth} × ${fixedHeight}`;
-  const previewHeight = layoutMode === 'Adaptive' ? 178 : 104 + fixedHeight * 39;
-  const shapeRadius = shape === 'Square' ? 5 : shape === 'Rounded' ? 22 : 100;
-  const previewDimensions = shape === 'Circle'
-    ? { width: previewHeight, height: previewHeight, alignSelf: 'center' as const }
-    : { width: layoutMode === 'Adaptive' ? '100%' as const : `${Math.min(100, 55 + fixedWidth * 11)}%` as const, height: previewHeight };
-  const previewTitle = selected.id === 'calendar' && calendarEvent ? calendarEvent.title : selected.title;
-  const previewSubtitle = selected.id === 'calendar' && calendarEvent ? formatEventDate(calendarEvent.startDate) : selected.subtitle;
-=======
   useEffect(() => {
     if (tab !== 'Widgets' && tab !== 'Customize') return;
     const timer = setInterval(() => setClockNow(Date.now()), 1000);
@@ -258,7 +202,6 @@ function WidgetStudio() {
   const selectedColorLabels = selected.type === 'Clock'
     ? colorLabels.filter(({ key }) => key !== 'icon')
     : colorLabels;
->>>>>>> origin/master
   const monthNow = new Date();
   const monthTitle = monthNow.toLocaleDateString([], { month: 'long', year: 'numeric' });
   const monthRows = buildCalendarRows(monthNow);
@@ -268,19 +211,11 @@ function WidgetStudio() {
     if (/^#[0-9A-Fa-f]{6}$/.test(value)) setColors((current) => ({ ...current, [key]: value }));
   };
   const finishColorEdit = (key: ColorKey) => {
-<<<<<<< HEAD
-    if (!/^#[0-9A-Fa-f]{6}$/.test(colorDrafts[key])) {
-      setColorDrafts((current) => ({ ...current, [key]: colors[key] }));
-    }
-=======
     if (!/^#[0-9A-Fa-f]{6}$/.test(colorDrafts[key])) setColorDrafts((current) => ({ ...current, [key]: colors[key] }));
->>>>>>> origin/master
   };
   const adjustPosition = (key: keyof typeof positions, amount: number) => {
     setPositions((current) => ({ ...current, [key]: Math.max(0, Math.min(100, current[key] + amount)) }));
   };
-<<<<<<< HEAD
-=======
   const resetDesign = (accent = '#D7F36A') => {
     const defaults: WidgetColors = { background: '#24251F', border: '#3C4030', icon: accent, meta: '#A6A79A', value: accent, title: '#F1EFE7', subtitle: '#A6A79A' };
     setColors(defaults); setColorDrafts(defaults); setShape('Rounded'); setTheme('Solid Color');
@@ -289,7 +224,6 @@ function WidgetStudio() {
     setClockHandColors({ ...defaultClockHandColors, hour: accent });
     setShowSecondClock(false); setClockNow(Date.now()); setStepGoal(10000); setStepStyle('Step ring');
   };
->>>>>>> origin/master
 
   const askBeforeSystemPermission = (title: string, message: string) => new Promise<boolean>((resolve) => {
     Alert.alert(title, message, [
@@ -343,14 +277,9 @@ function WidgetStudio() {
       Alert.alert('Development build needed', 'Health data is available only in a development build with the HealthKit / Health Connect native module installed.');
       return false;
     }
-<<<<<<< HEAD
-    const identifier = widget.id === 'health-steps' ? Health.QuantityType.stepCount : Health.CategoryType.sleepAnalysis;
-    const label = widget.id === 'health-steps' ? 'today’s steps' : 'sleep data';
-=======
     const isSteps = widget.id.includes('steps') || (widget.id === 'custom' && widget.style.startsWith('Step'));
     const identifier = isSteps ? Health.QuantityType.stepCount : Health.CategoryType.sleepAnalysis;
     const label = isSteps ? 'today’s steps' : 'sleep data';
->>>>>>> origin/master
     if (!Health.isAvailable()) {
       Alert.alert('Health data unavailable', 'HealthKit or Health Connect is not available on this device.');
       return false;
@@ -387,24 +316,15 @@ function WidgetStudio() {
       try {
         const level = await Battery.getBatteryLevelAsync();
         if (level >= 0) return { label: `${Math.round(level * 100)}%` };
-<<<<<<< HEAD
-      } catch {}
-=======
       } catch { }
->>>>>>> origin/master
     } else if (widget.id === 'storage') {
       try {
         const total = Paths.totalDiskSpace;
         const available = Paths.availableDiskSpace;
         const used = Math.max(0, total - available);
         return { label: `${formatBytes(used)} used`, subtitle: `${formatBytes(available)} free of ${formatBytes(total)}` };
-<<<<<<< HEAD
-      } catch {}
-    } else if (widget.id === 'health-steps') {
-=======
       } catch { }
     } else if (widget.id.includes('steps') || (widget.id === 'custom' && widget.type === 'Health' && widget.style.startsWith('Step'))) {
->>>>>>> origin/master
       try {
         const Health = getHealthApi();
         const now = new Date();
@@ -418,11 +338,7 @@ function WidgetStudio() {
           options: Health.StatisticsOption.cumulativeSum,
         });
         return { label: `${Math.round(steps.sum ?? 0).toLocaleString()} steps` };
-<<<<<<< HEAD
       } catch {}
-=======
-      } catch { }
->>>>>>> origin/master
     } else if (widget.id === 'health-sleep') {
       try {
         const Health = getHealthApi();
@@ -434,11 +350,7 @@ function WidgetStudio() {
         const sleepValues: number[] = [Health.SleepAnalysisValue.asleepUnspecified, Health.SleepAnalysisValue.asleepCore, Health.SleepAnalysisValue.asleepDeep, Health.SleepAnalysisValue.asleepREM];
         const asleepMs = samples.filter((sample) => sleepValues.includes(sample.value)).reduce((total, sample) => total + (sample.endDate.getTime() - sample.startDate.getTime()), 0);
         return { label: asleepMs ? `${Math.floor(asleepMs / 3600000)}h ${Math.floor((asleepMs % 3600000) / 60000)}m` : 'No sleep data' };
-<<<<<<< HEAD
-      } catch {}
-=======
       } catch { }
->>>>>>> origin/master
     }
     return {};
   };
@@ -464,10 +376,6 @@ function WidgetStudio() {
 
   const chooseWidget = (widget: Widget) => {
     setSelected(widget);
-<<<<<<< HEAD
-    setColors((current) => ({ ...current, value: widget.accent }));
-    setColorDrafts((current) => ({ ...current, value: widget.accent }));
-=======
     resetDesign(widget.accent);
     setClockMode(widget.id.startsWith('clock-analog') ? 'Analog' : 'Digital');
     if (widget.type === 'Clock') {
@@ -481,7 +389,6 @@ function WidgetStudio() {
     if (widget.id.includes('steps')) setHealthMetric('Steps');
     if (widget.id.startsWith('health-steps')) setStepStyle(widget.style);
     setShowSecondClock(false);
->>>>>>> origin/master
     setSaved(false);
     if (widget.id === 'battery' || widget.id === 'storage') {
       void refreshSelectedData(widget).then((liveData) => setSelected((current) => current.id === widget.id ? { ...current, ...liveData } : current));
@@ -501,8 +408,6 @@ function WidgetStudio() {
       );
     }
   };
-<<<<<<< HEAD
-=======
   const startFromScratch = () => {
     setSelected(scratchWidget);
     resetDesign(scratchWidget.accent);
@@ -525,7 +430,6 @@ function WidgetStudio() {
       setDigitalClockStyle('Clean digital');
     }
   };
->>>>>>> origin/master
   const updateGradientEnd = (value: string) => {
     setGradientEndDraft(value);
     if (/^#[0-9A-Fa-f]{6}$/.test(value)) setGradientEnd(value);
@@ -539,11 +443,7 @@ function WidgetStudio() {
   };
   const addToHomeScreen = async () => {
     if (selected.type === 'Health' && !(await ensureHealthAccess(selected))) return;
-<<<<<<< HEAD
-    if (selected.id === 'calendar') {
-=======
     if (selected.type === 'Calendar') {
->>>>>>> origin/master
       if (!(await ensureCalendarAccess())) return;
       if (!calendarEvent) {
         await loadCalendarEvents();
@@ -552,23 +452,6 @@ function WidgetStudio() {
     }
     const liveData = await refreshSelectedData();
     const selectedForSnapshot = { ...selected, ...liveData };
-<<<<<<< HEAD
-    try {
-      // Load the native widget only on demand so the designer can still run in Expo Go.
-      const nativeWidget = require('./widgets/StudioWidget').default as NativeWidget;
-      nativeWidget.updateSnapshot({
-        title: selected.id === 'calendar' && calendarEvent ? calendarEvent.title : selectedForSnapshot.title,
-        subtitle: selected.id === 'calendar' && calendarEvent ? formatEventDate(calendarEvent.startDate) : selectedForSnapshot.subtitle,
-        value: selected.id === 'calendar' && calendarEvent ? formatEventDate(calendarEvent.startDate) : selectedForSnapshot.label,
-        accent: colors.value, icon: selected.icon, size: sizeLabel,
-        widgetKind: selected.id, monthTitle, monthRows,
-        layoutMode, widthCells: fixedWidth, heightCells: fixedHeight, shape, theme, colors, positions, gradientEnd,
-      });
-    } catch {
-      Alert.alert(
-        'Development build needed',
-        'Expo Go does not include the native widget module. Open this app in a development build to add your widget.',
-=======
     let slotName = 'StudioWidget';
     try {
       if (Platform.OS === 'android') {
@@ -594,7 +477,6 @@ function WidgetStudio() {
       Alert.alert(
         'Widget unavailable',
         'This app build cannot prepare another widget. Use the installed Widget Studio release and try again.',
->>>>>>> origin/master
       );
       return;
     }
@@ -602,11 +484,7 @@ function WidgetStudio() {
     if (Platform.OS === 'android') {
       try {
         if (!StudioAndroid) throw new Error('Native widget pinning is unavailable in this app build.');
-<<<<<<< HEAD
-        await StudioAndroid.pinWidget('StudioWidget');
-=======
         await StudioAndroid.pinWidget(slotName);
->>>>>>> origin/master
       } catch (error) {
         Alert.alert('Could not add widget', error instanceof Error ? error.message : 'Try adding Widget Studio from your launcher’s Widgets panel.');
       }
@@ -657,21 +535,12 @@ function WidgetStudio() {
         <View style={styles.brandCopy}><Text style={styles.brand}>WIDGET STUDIO</Text><Text style={styles.brandSub}>A little space, made yours</Text></View>
         <Pressable onPress={() => changeTab('Settings')} style={styles.avatar} accessibilityLabel="Settings"><Text style={styles.avatarText}>A</Text></Pressable>
       </View>
-<<<<<<< HEAD
-      <Animated.ScrollView style={{ opacity: pageOpacity, transform: [{ translateY: pageOffset }] }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {tab !== 'Widgets' && <View style={styles.headingRow}>
-          <View><Text style={styles.eyebrow}>{tab === 'Customize' ? 'A FEW LITTLE DETAILS' : 'YOUR STUDIO'}</Text><Text style={styles.heading}>{tab === 'Customize' ? <>Fine-tune{'\n'}your widget.</> : <>A space that{'\n'}feels like you.</>}</Text></View>
-          <View style={styles.sparkle}><Text style={{ color: '#D7F36A', fontSize: 27 }}>✳</Text></View>
-        </View>}
-        {tab === 'Settings' ? (
-=======
       <Animated.ScrollView stickyHeaderIndices={tab === 'Customize' ? [1] : undefined} style={{ opacity: pageOpacity, transform: [{ translateY: pageOffset }] }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {tab !== 'Widgets' && <View style={styles.headingRow}>
           <View><Text style={styles.eyebrow}>{tab === 'Customize' ? (selected.id === 'custom' ? 'START WITH A BLANK CANVAS' : 'A FEW LITTLE DETAILS') : 'YOUR STUDIO'}</Text><Text style={styles.heading}>{tab === 'Customize' ? selected.id === 'custom' ? <>Create your{'\n'}own widget.</> : <>Fine-tune{'\n'}your widget.</> : <>A space that{'\n'}feels like you.</>}</Text></View>
           <View style={styles.sparkle}><Text style={{ color: '#D7F36A', fontSize: 27 }}>✳</Text></View>
         </View>}
         {tab === 'Settings' && (
->>>>>>> origin/master
           <View style={styles.settingsCard}>
             <View style={styles.settingsIntro}><Text style={styles.settingsIntroIcon}>⚙︎</Text><View><Text style={styles.sectionTitle}>Studio settings</Text><Text style={styles.sectionSub}>A few details about your setup.</Text></View></View>
             <View style={styles.divider} />
@@ -685,92 +554,6 @@ function WidgetStudio() {
             <View style={styles.divider} />
             <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Widget Studio</Text><Text style={styles.controlSub}>Expo SDK 58.0.5</Text></View><Text style={styles.settingsValue}>✳</Text></View>
           </View>
-<<<<<<< HEAD
-        ) : (
-          <>
-          {tab === 'Customize' && <View style={styles.previewShell}>
-          <View style={styles.previewTop}><Text style={styles.previewEyebrow}>LIVE PREVIEW</Text><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
-          <View style={[styles.widgetPreview, previewDimensions, { borderColor: theme === 'Liquid Glass' ? 'rgba(255,255,255,0.48)' : colors.border, borderRadius: shapeRadius, backgroundColor: theme === 'Solid Color' ? colors.background : 'transparent' }]}>
-            {theme === 'Gradient' && <LinearGradient pointerEvents="none" colors={[colors.background, gradientEnd] as const} style={styles.previewBackground} />}
-            {theme === 'Liquid Glass' && <LinearGradient pointerEvents="none" colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.05)']} style={styles.previewBackground} />}
-            {selected.id === 'calendar' ? <View style={styles.calendarFace}>
-              <Text style={[styles.calendarMonth, { color: colors.title }]}>{monthTitle}</Text>
-              <Text style={[styles.calendarWeekdays, { color: colors.meta }]}>Su  Mo  Tu  We  Th  Fr  Sa</Text>
-              {monthRows.map((row, index) => <Text key={index} style={[styles.calendarDays, { color: colors.value }]}>{row}</Text>)}
-              <Text numberOfLines={1} style={[styles.calendarEvent, { color: colors.subtitle }]}>{calendarEvent ? `● ${calendarEvent.title} · ${formatEventDate(calendarEvent.startDate)}` : 'Choose one event below'}</Text>
-            </View> : <>
-              <View style={[styles.previewIconPosition, { left: `${positions.iconX}%`, top: `${positions.iconY}%` }]}><View style={[styles.miniIcon, { backgroundColor: theme === 'Liquid Glass' ? 'rgba(255,255,255,0.18)' : `${colors.icon}20` }]}><Text style={{ color: theme === 'Liquid Glass' ? '#FFFFFF' : colors.icon, fontSize: 19 }}>{selected.icon}</Text></View></View>
-              <View style={[styles.previewTextPosition, { left: `${positions.textX}%`, top: `${positions.textY}%` }]}>
-                <Text style={[styles.previewType, { color: theme === 'Liquid Glass' ? '#E8EDF4' : colors.meta }]}>{selected.type.toUpperCase()} · {sizeLabel.toUpperCase()}</Text>
-                <Text style={[styles.previewValue, { color: theme === 'Liquid Glass' ? '#FFFFFF' : colors.value }]}>{selected.id === 'weather' ? '☀  ' : ''}{selected.label}</Text>
-                <Text style={[styles.previewTitle, { color: theme === 'Liquid Glass' ? '#FFFFFF' : colors.title }]}>{previewTitle}</Text>
-                <Text style={[styles.previewSubtitle, { color: theme === 'Liquid Glass' ? '#E8EDF4' : colors.subtitle }]}>{previewSubtitle}</Text>
-              </View>
-            </>}
-          </View>
-          <View style={styles.previewFooter}><Text style={styles.previewHint}>◉  Updates live as you customize</Text><Pressable onPress={() => setSaved(!saved)} style={[styles.saveButton, saved && styles.saveButtonDone]}><Text style={[styles.saveButtonText, saved && { color: '#10110F' }]}>{saved ? '✓  Saved' : '＋  Save widget'}</Text></Pressable></View>
-          </View>}
-          {tab === 'Widgets' && <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {categories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.chip, category === item && styles.chipActive]}><Text style={[styles.chipText, category === item && styles.chipTextActive]}>{item}</Text></Pressable>)}
-          </ScrollView>
-          <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Start with a widget</Text><Text style={styles.sectionSub}>Made to fit your kind of day.</Text></View><Text style={styles.count}>{filtered.length.toString().padStart(2, '0')} DESIGNS</Text></View>
-          <View style={styles.grid}>
-          {filtered.map((widget) => <Pressable key={widget.id} onPress={() => { chooseWidget(widget); setWidgetSheetVisible(true); }} style={[styles.templateCard, { width: cardWidth }, selected.id === widget.id && styles.templateSelected]}>
-            <View style={[styles.templateArt, { backgroundColor: `${widget.accent}12` }]}><View style={[styles.artOrb, { backgroundColor: widget.accent }]} /><Text style={[styles.artSymbol, { color: widget.accent }]}>{widget.icon}</Text><Text style={[styles.artLabel, { color: widget.accent }]}>{widget.label}</Text><Text style={styles.artTime}>MON, 09:41</Text><View style={styles.artLine} /></View>
-            <View style={styles.templateInfo}><View><Text style={styles.templateTitle}>{widget.title}</Text><Text style={styles.templateType}>{widget.type} widget</Text></View><View style={[styles.selectDot, selected.id === widget.id && { backgroundColor: '#D7F36A', borderColor: '#D7F36A' }]}>{selected.id === widget.id && <Text style={styles.check}>✓</Text>}</View></View>
-          </Pressable>)}
-          </View>
-          </>}
-          {tab === 'Customize' && <>
-        <View style={styles.customCard}>
-          <Text style={styles.controlTitle}>Sizing</Text><Text style={styles.controlSub}>Choose how the widget fits your home screen.</Text>
-          <View style={styles.modeSwitch}>{(['Fixed', 'Adaptive'] as const).map((mode) => <Pressable key={mode} onPress={() => setLayoutMode(mode)} style={[styles.modeButton, layoutMode === mode && styles.modeButtonActive]}><Text style={[styles.modeText, layoutMode === mode && styles.modeTextActive]}>{mode}</Text></Pressable>)}</View>
-          {layoutMode === 'Fixed' ? <>
-            <StepperControl label="Width" value={fixedWidth} unit=" cells" min={1} max={6} onChange={setFixedWidth} />
-            <View style={styles.divider} />
-            <StepperControl label="Height" value={fixedHeight} unit=" cells" min={1} max={6} onChange={setFixedHeight} />
-          </> : <Text style={styles.helperText}>Adaptive widgets use the space provided by the launcher and can be resized there.</Text>}
-        </View>
-        <View style={styles.customCard}>
-          <Text style={styles.controlTitle}>Shape</Text><Text style={styles.controlSub}>Choose the outline for your widget.</Text>
-          <View style={styles.optionGrid}>{(['Rounded', 'Circle', 'Square', 'Pill'] as const).map((item) => <Pressable key={item} onPress={() => setShape(item)} style={[styles.optionButton, shape === item && styles.optionButtonActive]}><View style={[styles.shapeSample, item === 'Rounded' && { borderRadius: 8 }, item === 'Circle' && { borderRadius: 20 }, item === 'Pill' && { borderRadius: 20, width: 38 }, item === 'Square' && { borderRadius: 2 }, shape === item && { borderColor: '#D7F36A' }]} /><Text style={[styles.optionText, shape === item && styles.optionTextActive]}>{item}</Text></Pressable>)}</View>
-        </View>
-        <View style={styles.customCard}>
-          <Text style={styles.controlTitle}>Theme</Text><Text style={styles.controlSub}>Set the overall feel.</Text>
-          <View style={styles.optionGrid}>{(['Liquid Glass', 'Solid Color', 'Gradient'] as const).map((item) => <Pressable key={item} onPress={() => setTheme(item)} style={[styles.themeButton, theme === item && styles.optionButtonActive]}><View style={[styles.themeSample, item === 'Liquid Glass' && styles.glassSample, item === 'Solid Color' && { backgroundColor: colors.background }, item === 'Gradient' && styles.gradientSample]} /><Text style={[styles.optionText, theme === item && styles.optionTextActive]}>{item}</Text></Pressable>)}</View>
-        </View>
-        {theme !== 'Liquid Glass' && <View style={styles.customCard}>
-          <Text style={styles.controlTitle}>Colors</Text><Text style={styles.controlSub}>Enter any hex color. Each text layer is independent.</Text>
-          <View style={styles.colorGrid}>{colorLabels.map(({ key, label }) => <ColorControl key={key} label={label} value={colorDrafts[key]} onChange={(value) => updateColor(key, value)} onFinish={() => finishColorEdit(key)} />)}</View>
-          {theme === 'Gradient' && <ColorControl label="Gradient end" value={gradientEndDraft} onChange={updateGradientEnd} onFinish={finishGradientEndEdit} />}
-        </View>}
-        {theme === 'Liquid Glass' && <View style={styles.glassNotice}><Text style={styles.glassNoticeIcon}>✧</Text><Text style={styles.glassNoticeText}>Liquid Glass uses its own translucent finish, so manual colors are turned off.</Text></View>}
-        <View style={styles.customCard}>
-          <Text style={styles.controlTitle}>Position</Text><Text style={styles.controlSub}>Move the icon and text by percentage.</Text>
-          <StepperControl label="Icon · horizontal" value={positions.iconX} unit="%" min={0} max={100} step={5} onChange={(value) => setPositions((current) => ({ ...current, iconX: value }))} />
-          <View style={styles.divider} />
-          <StepperControl label="Icon · vertical" value={positions.iconY} unit="%" min={0} max={100} step={5} onChange={(value) => setPositions((current) => ({ ...current, iconY: value }))} />
-          <View style={styles.divider} />
-          <StepperControl label="Text · horizontal" value={positions.textX} unit="%" min={0} max={100} step={5} onChange={(value) => setPositions((current) => ({ ...current, textX: value }))} />
-          <View style={styles.divider} />
-          <StepperControl label="Text · vertical" value={positions.textY} unit="%" min={0} max={100} step={5} onChange={(value) => setPositions((current) => ({ ...current, textY: value }))} />
-        </View>
-        {selected.id === 'calendar' && <Pressable onPress={openCalendarPicker} style={styles.customCard}>
-          <Text style={styles.controlTitle}>Calendar event</Text>
-          <Text style={styles.controlSub}>{calendarEvent ? `${calendarEvent.title} · ${formatEventDate(calendarEvent.startDate)}` : 'Choose one event to show on this widget.'}</Text>
-          <Text style={styles.calendarPickButton}>Choose event  ›</Text>
-        </Pressable>}
-        <Pressable onPress={addToHomeScreen} style={styles.addHomeButton}>
-          <Text style={styles.addHomeIcon}>＋</Text>
-          <View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>Add to home screen</Text><Text style={styles.addHomeSub}>Your design will be ready in Widgets</Text></View>
-          <Text style={styles.addHomeArrow}>↗</Text>
-        </Pressable>
-        <View style={styles.note}><Text style={styles.noteIcon}>✦</Text><Text style={styles.noteText}>The launcher controls the final widget bounds after it is added.</Text></View>
-          </>}
-          </>
-        )}
-=======
         )}
         {tab === 'Customize' && <View style={styles.previewShell}>
               <View style={styles.previewTop}><Text style={styles.previewEyebrow}>LIVE PREVIEW</Text><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
@@ -880,7 +663,6 @@ function WidgetStudio() {
               </Pressable>}
               <View style={styles.note}><Text style={styles.noteIcon}>✦</Text><Text style={styles.noteText}>The launcher controls the final widget bounds after it is added.</Text></View>
         </View>}
->>>>>>> origin/master
       </Animated.ScrollView>
       <View pointerEvents="box-none" style={styles.bottomDock}>
         <View style={styles.bottomNav}>
@@ -897,20 +679,7 @@ function WidgetStudio() {
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>WIDGET PREVIEW</Text><Text style={styles.sheetTitle}>{previewTitle}</Text></View><Pressable onPress={() => setWidgetSheetVisible(false)} style={styles.sheetClose}><Text style={styles.sheetCloseText}>×</Text></Pressable></View>
             <View style={[styles.sheetWidgetPreview, { borderColor: theme === 'Liquid Glass' ? 'rgba(255,255,255,0.48)' : colors.border, borderRadius: shapeRadius, backgroundColor: theme === 'Liquid Glass' ? 'rgba(255,255,255,0.12)' : colors.background }]}>
-<<<<<<< HEAD
-              {selected.id === 'calendar' ? <View style={styles.sheetCalendarFace}>
-                <Text style={[styles.calendarMonth, { color: colors.title }]}>{monthTitle}</Text>
-                <Text style={[styles.calendarWeekdays, { color: colors.meta }]}>Su  Mo  Tu  We  Th  Fr  Sa</Text>
-                {monthRows.map((row, index) => <Text key={index} style={[styles.sheetCalendarDays, { color: colors.value }]}>{row}</Text>)}
-                <Text numberOfLines={1} style={[styles.sheetCalendarEvent, { color: colors.subtitle }]}>{calendarEvent ? `${calendarEvent.title} · ${formatEventDate(calendarEvent.startDate)}` : 'Choose one event'}</Text>
-              </View> : <>
-                <View style={styles.sheetPreviewMeta}><View style={[styles.miniIcon, { backgroundColor: `${colors.icon}20` }]}><Text style={{ color: colors.icon, fontSize: 19 }}>{selected.icon}</Text></View><Text style={[styles.previewType, { color: colors.meta }]}>{selected.type.toUpperCase()} · {sizeLabel.toUpperCase()}</Text></View>
-                <Text style={[styles.sheetValue, { color: colors.value }]}>{selected.id === 'weather' ? '☀  ' : ''}{selected.label}</Text>
-                <Text style={[styles.sheetSubtitle, { color: colors.subtitle }]}>{previewSubtitle}</Text>
-              </>}
-=======
               <WidgetSample widget={selected} large accent={theme === 'Liquid Glass' ? '#FFFFFF' : colors.value} clockMode={clockMode} analogClockStyle={analogClockStyle} digitalClockStyle={digitalClockStyle} clockHandColors={activeClockHandColors} timeFormat={timeFormat} showSeconds={showSeconds} showPeriod={showPeriod} clockZone={clockZone} secondClockZone={secondClockZone} showSecondClock={showSecondClock} now={clockNow} stepGoal={stepGoal} stepStyle={stepStyle} />
->>>>>>> origin/master
             </View>
             <View style={styles.sheetActions}>
               <Pressable onPress={() => { setWidgetSheetVisible(false); changeTab('Customize'); }} style={styles.customizeButton}><Text style={styles.customizeButtonText}>Customize</Text></Pressable>
@@ -964,13 +733,6 @@ function StepperControl({
   );
 }
 
-<<<<<<< HEAD
-function ColorControl({ label, value, onChange, onFinish }: {
-  label: string; value: string; onChange: (value: string) => void; onFinish: () => void;
-}) {
-  const validColor = /^#[0-9A-Fa-f]{6}$/.test(value);
-  return (
-=======
 const colorPickerStyles = StyleSheet.create({
   handCard: { borderTopWidth: 1, borderTopColor: '#2B2C25', marginTop: 16, paddingTop: 15 },
   button: { height: 40, flexDirection: 'row', alignItems: 'center', backgroundColor: '#23241F', borderRadius: 10, borderWidth: 1, borderColor: '#37382F', paddingHorizontal: 9 },
@@ -1002,28 +764,10 @@ function ColorControl({ label, value, onChange, onFinish = () => {} }: {
     setVisible(false);
   };
   if (Platform.OS !== 'android') return (
->>>>>>> origin/master
     <View style={styles.colorControl}>
       <Text style={styles.colorLabel}>{label}</Text>
       <View style={styles.colorInputRow}>
         <View style={[styles.colorSwatch, { backgroundColor: validColor ? value : '#383931' }]} />
-<<<<<<< HEAD
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          onEndEditing={onFinish}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          maxLength={7}
-          placeholder="#RRGGBB"
-          placeholderTextColor="#77786F"
-          selectionColor="#D7F36A"
-          style={styles.colorInput}
-        />
-      </View>
-    </View>
-  );
-=======
         <TextInput value={value} onChangeText={onChange} onEndEditing={onFinish} autoCapitalize="characters" autoCorrect={false} maxLength={7} placeholder="#RRGGBB" placeholderTextColor="#77786F" selectionColor="#D7F36A" style={styles.colorInput} />
       </View>
     </View>
@@ -1167,7 +911,6 @@ function WidgetSample({ widget, large = false, accent, clockMode = 'Analog', ana
     {widget.type === 'Health' && widget.style === 'Sleep summary' && <Text style={styles.digitalDate}>Deep 2h 10m · REM 1h 34m</Text>}
     <Text style={styles.digitalDate}>{widget.type === 'Health' && widget.style === 'Sleep summary' ? 'Last night' : widget.type}</Text>
   </View>;
->>>>>>> origin/master
 }
 
 const styles = StyleSheet.create({
@@ -1177,19 +920,12 @@ const styles = StyleSheet.create({
   previewShell: { backgroundColor: '#191A17', borderRadius: 23, padding: 14, borderWidth: 1, borderColor: '#282923' }, previewTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingHorizontal: 3 }, previewEyebrow: { color: '#AAA99D', fontSize: 9, letterSpacing: 1.7, fontWeight: '700', flex: 1 }, liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#D7F36A', marginRight: 5 }, liveText: { color: '#D7F36A', fontSize: 8, letterSpacing: 1.3, fontWeight: '800' }, widgetPreview: { overflow: 'hidden', position: 'relative', borderWidth: 1, padding: 0, justifyContent: 'flex-start' }, previewBackground: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }, previewIconPosition: { position: 'absolute' }, previewTextPosition: { position: 'absolute', width: '78%' }, miniIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, previewType: { color: '#919287', fontSize: 8, letterSpacing: 1.4, marginLeft: 9, flex: 1, fontWeight: '700' }, more: { color: '#8B8D81', letterSpacing: 2, fontSize: 12 }, previewValue: { fontSize: 36, fontWeight: '600', letterSpacing: -1.3, marginTop: 7 }, previewBottom: {}, previewTitle: { color: '#F1EFE7', fontSize: 13, fontWeight: '700' }, previewSubtitle: { color: '#929389', fontSize: 10, marginTop: 3 }, calendarFace: { paddingHorizontal: 17, paddingVertical: 9 }, calendarMonth: { fontSize: 16, fontWeight: '800', marginBottom: 5 }, calendarWeekdays: { fontSize: 8, letterSpacing: 0.1, fontWeight: '700' }, calendarDays: { fontSize: 9, lineHeight: 12, fontVariant: ['tabular-nums'] }, calendarEvent: { fontSize: 8, marginTop: 2 }, previewFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12 }, previewHint: { color: '#85867C', fontSize: 9, flex: 1 }, saveButton: { backgroundColor: '#D7F36A', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginLeft: 8 }, saveButtonDone: { backgroundColor: '#D7F36A' }, saveButtonText: { color: '#171812', fontWeight: '800', fontSize: 10 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 27, marginBottom: 13 }, sectionTitle: { color: '#F1EFE7', fontSize: 17, fontWeight: '700', letterSpacing: -0.35 }, sectionSub: { color: '#8F9086', fontSize: 11, marginTop: 4 }, count: { color: '#7E8075', fontSize: 8, letterSpacing: 1.4, fontWeight: '700', marginBottom: 2 }, chips: { paddingTop: 12, paddingBottom: 13, gap: 7 }, chip: { borderRadius: 20, paddingHorizontal: 13, paddingVertical: 8, borderWidth: 1, borderColor: '#303129', backgroundColor: '#191A17' }, chipActive: { backgroundColor: '#D7F36A', borderColor: '#D7F36A' }, chipText: { color: '#B0B1A5', fontSize: 10, fontWeight: '600' }, chipTextActive: { color: '#191A14', fontWeight: '800' }, grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 11 }, templateCard: { borderRadius: 17, backgroundColor: '#191A17', padding: 8, borderWidth: 1, borderColor: '#292A24' }, templateSelected: { borderColor: '#D7F36A', backgroundColor: '#1E2018' }, templateArt: { height: 105, borderRadius: 11, overflow: 'hidden', padding: 10, justifyContent: 'space-between' }, artOrb: { position: 'absolute', width: 100, height: 100, borderRadius: 50, opacity: 0.1, top: -30, right: -20 }, artSymbol: { fontSize: 21, position: 'absolute', top: 9, right: 11 }, artLabel: { fontWeight: '700', fontSize: 22, letterSpacing: -0.7, marginTop: 21 }, artTime: { color: '#AAA99D', fontSize: 8, letterSpacing: 1.1 }, artLine: { position: 'absolute', height: 2, width: 25, backgroundColor: '#F1EFE7', opacity: 0.35, bottom: 15, right: 12, borderRadius: 2 }, templateInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, paddingTop: 9, paddingBottom: 2 }, templateTitle: { color: '#EDEBE3', fontSize: 11, fontWeight: '700' }, templateType: { color: '#8B8C81', fontSize: 9, marginTop: 3 }, selectDot: { width: 17, height: 17, borderRadius: 9, borderWidth: 1, borderColor: '#55564C', alignItems: 'center', justifyContent: 'center' }, check: { fontSize: 10, color: '#171812', fontWeight: '900' }, editIcon: { color: '#D7F36A', fontSize: 20, marginBottom: -1 },
   customCard: { backgroundColor: '#191A17', borderRadius: 17, borderWidth: 1, borderColor: '#292A24', paddingHorizontal: 15, paddingVertical: 16, marginTop: 16 }, customRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, controlTitle: { color: '#EDEBE3', fontSize: 12, fontWeight: '700' }, controlSub: { color: '#8C8D82', fontSize: 9, marginTop: 4 }, palette: { flexDirection: 'row', gap: 7 }, swatch: { width: 23, height: 23, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, swatchSelected: { borderColor: '#F5F3E9', borderWidth: 2 }, swatchCheck: { color: '#171812', fontSize: 10, fontWeight: '900' }, divider: { height: 1, backgroundColor: '#2B2C25', marginVertical: 2 }, sizeGroup: { flexDirection: 'row', gap: 5, padding: 4, borderRadius: 10, backgroundColor: '#24251F' }, sizeOption: { width: 27, height: 27, borderRadius: 7, alignItems: 'center', justifyContent: 'center' }, sizeOptionActive: { backgroundColor: '#D7F36A' }, sizeText: { color: '#999A8F', fontSize: 11, fontWeight: '700' }, sizeTextActive: { color: '#171812' }, note: { flexDirection: 'row', marginTop: 17, marginBottom: 10, alignItems: 'center', paddingHorizontal: 4 }, noteIcon: { color: '#D7F36A', fontSize: 14, marginRight: 8 }, noteText: { color: '#84857A', fontSize: 10, lineHeight: 15, flex: 1 },
-<<<<<<< HEAD
-  modeSwitch: { flexDirection: 'row', backgroundColor: '#24251F', borderRadius: 12, padding: 4, marginTop: 14, marginBottom: 5 }, modeButton: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 9 }, modeButtonActive: { backgroundColor: '#D7F36A' }, modeText: { color: '#9A9B90', fontSize: 11, fontWeight: '700' }, modeTextActive: { color: '#171812' }, helperText: { color: '#96978B', fontSize: 10, lineHeight: 15, marginTop: 12 }, optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }, optionButton: { flexGrow: 1, minWidth: '21%', minHeight: 64, borderRadius: 12, borderWidth: 1, borderColor: '#34352D', backgroundColor: '#20211D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }, themeButton: { flexGrow: 1, minWidth: '29%', minHeight: 76, borderRadius: 12, borderWidth: 1, borderColor: '#34352D', backgroundColor: '#20211D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, gap: 6 }, optionButtonActive: { borderColor: '#D7F36A', backgroundColor: '#25291D' }, optionText: { color: '#A4A59A', fontSize: 9, fontWeight: '600' }, optionTextActive: { color: '#F0F0E8' }, shapeSample: { width: 27, height: 27, borderRadius: 5, borderWidth: 1, borderColor: '#85867B', marginBottom: 5 }, themeSample: { width: 36, height: 23, borderRadius: 7, backgroundColor: '#33352D', borderWidth: 1, borderColor: '#55564D' }, glassSample: { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.55)' }, gradientSample: { backgroundColor: '#66778D', borderColor: '#66778D' }, colorGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginTop: 16 }, colorControl: { width: '48%', marginBottom: 2 }, colorLabel: { color: '#B9BAAF', fontSize: 9, fontWeight: '600', marginBottom: 6 }, colorInputRow: { height: 38, flexDirection: 'row', alignItems: 'center', backgroundColor: '#23241F', borderRadius: 9, borderWidth: 1, borderColor: '#37382F', paddingHorizontal: 7 }, colorSwatch: { width: 17, height: 17, borderRadius: 5, marginRight: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)' }, colorInput: { flex: 1, color: '#E8E7DE', fontSize: 10, paddingVertical: 0 }, glassNotice: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#20211D', borderRadius: 14, padding: 14, marginTop: 16, borderWidth: 1, borderColor: '#3B3D34' }, glassNoticeIcon: { color: '#E7F2FF', fontSize: 18, marginRight: 10 }, glassNoticeText: { flex: 1, color: '#AEB6BF', fontSize: 10, lineHeight: 15 }, stepperRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, stepperLabel: { color: '#D9D8CE', fontSize: 11, fontWeight: '600' }, stepperControls: { minWidth: 126, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#24251F', borderRadius: 10, padding: 4 }, stepperButton: { width: 31, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#303129' }, stepperButtonText: { color: '#D7F36A', fontSize: 15, fontWeight: '700' }, stepperValue: { color: '#F0EFE7', minWidth: 48, textAlign: 'center', fontSize: 10, fontWeight: '700' },
-=======
   modeSwitch: { flexDirection: 'row', backgroundColor: '#24251F', borderRadius: 12, padding: 4, marginTop: 14, marginBottom: 5 }, modeButton: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 9 }, modeButtonActive: { backgroundColor: '#D7F36A' }, modeText: { color: '#9A9B90', fontSize: 11, fontWeight: '700' }, modeTextActive: { color: '#171812' }, helperText: { color: '#96978B', fontSize: 10, lineHeight: 15, marginTop: 12 }, fullPageButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#414238', marginTop: 9 }, fullPageText: { color: '#D7F36A', fontSize: 10, fontWeight: '700' }, optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }, optionButton: { flexGrow: 1, minWidth: '21%', minHeight: 64, borderRadius: 12, borderWidth: 1, borderColor: '#34352D', backgroundColor: '#20211D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }, themeButton: { flexGrow: 1, minWidth: '29%', minHeight: 76, borderRadius: 12, borderWidth: 1, borderColor: '#34352D', backgroundColor: '#20211D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, gap: 6 }, optionButtonActive: { borderColor: '#D7F36A', backgroundColor: '#25291D' }, optionText: { color: '#A4A59A', fontSize: 9, fontWeight: '600' }, optionTextActive: { color: '#F0F0E8' }, shapeSample: { width: 27, height: 27, borderRadius: 5, borderWidth: 1, borderColor: '#85867B', marginBottom: 5 }, themeSample: { width: 36, height: 23, borderRadius: 7, backgroundColor: '#33352D', borderWidth: 1, borderColor: '#55564D' }, glassSample: { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.55)' }, gradientSample: { backgroundColor: '#66778D', borderColor: '#66778D' }, colorGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginTop: 16 }, colorControl: { width: '48%', marginBottom: 2 }, colorLabel: { color: '#B9BAAF', fontSize: 9, fontWeight: '600', marginBottom: 6 }, colorInputRow: { height: 38, flexDirection: 'row', alignItems: 'center', backgroundColor: '#23241F', borderRadius: 9, borderWidth: 1, borderColor: '#37382F', paddingHorizontal: 7 }, colorSwatch: { width: 17, height: 17, borderRadius: 5, marginRight: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)' }, colorInput: { flex: 1, color: '#E8E7DE', fontSize: 10, paddingVertical: 0 }, glassNotice: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#20211D', borderRadius: 14, padding: 14, marginTop: 16, borderWidth: 1, borderColor: '#3B3D34' }, glassNoticeIcon: { color: '#E7F2FF', fontSize: 18, marginRight: 10 }, glassNoticeText: { flex: 1, color: '#AEB6BF', fontSize: 10, lineHeight: 15 }, stepperRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, stepperLabel: { color: '#D9D8CE', fontSize: 11, fontWeight: '600' }, stepperControls: { minWidth: 126, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#24251F', borderRadius: 10, padding: 4 }, stepperButton: { width: 31, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#303129' }, stepperButtonText: { color: '#D7F36A', fontSize: 15, fontWeight: '700' }, stepperValue: { color: '#F0EFE7', minWidth: 48, textAlign: 'center', fontSize: 10, fontWeight: '700' },
->>>>>>> origin/master
   emptyState: { minHeight: 145, borderRadius: 17, backgroundColor: '#191A17', borderWidth: 1, borderColor: '#292A24', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }, emptyIcon: { color: '#D7F36A', fontSize: 25 }, emptyTitle: { color: '#EDEBE3', fontSize: 13, fontWeight: '700', marginTop: 9 }, emptySub: { color: '#8C8D82', fontSize: 10, marginTop: 5 },
   addHomeButton: { minHeight: 66, borderRadius: 15, backgroundColor: '#D7F36A', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginTop: 12 }, addHomeIcon: { fontSize: 23, color: '#171812', fontWeight: '600', marginRight: 12 }, addHomeTitle: { color: '#171812', fontSize: 12, fontWeight: '800' }, addHomeSub: { color: '#454A31', fontSize: 9, marginTop: 3 }, addHomeArrow: { color: '#171812', fontSize: 18, fontWeight: '700' },
   settingsCard: { backgroundColor: '#191A17', borderRadius: 20, borderWidth: 1, borderColor: '#292A24', paddingHorizontal: 16, marginTop: 4 }, settingsIntro: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18 }, settingsIntroIcon: { color: '#D7F36A', fontSize: 24, marginRight: 13 }, settingsRow: { minHeight: 65, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, settingsValue: { color: '#D7F36A', fontSize: 15, fontWeight: '700', marginRight: 4 }, settingsChevron: { color: '#85867D', fontSize: 23, marginRight: 4 },
   bottomDock: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', backgroundColor: 'transparent' }, bottomNav: { alignSelf: 'center', width: 202, height: 62, borderRadius: 31, borderWidth: 1, borderColor: '#37382F', backgroundColor: '#1A1B17', flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginTop: 8, marginBottom: 18, paddingHorizontal: 8, shadowColor: '#000000', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 9 }, navActiveCircle: { position: 'absolute', left: 19, top: 8, width: 44, height: 44, borderRadius: 22, backgroundColor: '#D7F36A' }, navItem: { width: 54, height: 50, borderRadius: 27, alignItems: 'center', justifyContent: 'center' }, navIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, navIcon: { color: '#929388', fontSize: 20, fontWeight: '600' }, navIconActive: { color: '#171812' },
   sheetOverlay: { flex: 1, justifyContent: 'flex-end' }, sheetScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.58)' }, widgetSheet: { backgroundColor: '#191A17', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: '#34352D', paddingHorizontal: 22, paddingTop: 10, paddingBottom: 30 }, sheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: '#55564D', marginBottom: 18 }, sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 }, sheetEyebrow: { color: '#A1A296', fontSize: 9, letterSpacing: 1.6, fontWeight: '700' }, sheetTitle: { color: '#F1EFE7', fontSize: 20, fontWeight: '700', marginTop: 4 }, sheetClose: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#292A24' }, sheetCloseText: { color: '#C8C8BB', fontSize: 22, lineHeight: 24 }, sheetWidgetPreview: { minHeight: 184, borderRadius: 18, borderWidth: 1, overflow: 'hidden', backgroundColor: '#24251F', padding: 16, justifyContent: 'space-between' }, sheetGlow: { position: 'absolute', width: 150, height: 150, borderRadius: 75, opacity: 0.08, right: -30, top: 15 }, sheetPreviewMeta: { flexDirection: 'row', alignItems: 'center' }, sheetValue: { fontSize: 38, fontWeight: '700', letterSpacing: -1.2 }, sheetSubtitle: { color: '#B1B2A7', fontSize: 11, marginTop: -8 }, sheetCalendarFace: { flex: 1, justifyContent: 'space-evenly' }, sheetCalendarDays: { fontSize: 9, lineHeight: 11, fontVariant: ['tabular-nums'] }, sheetCalendarEvent: { fontSize: 8, marginTop: 1 }, sheetActions: { flexDirection: 'row', gap: 10, marginTop: 16 }, customizeButton: { flex: 1, minHeight: 52, borderRadius: 14, borderWidth: 1, borderColor: '#55564C', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }, customizeButtonText: { color: '#E8E6DE', fontSize: 12, fontWeight: '700' }, addScreenButton: { flex: 1.25, minHeight: 52, borderRadius: 14, backgroundColor: '#D7F36A', alignItems: 'center', justifyContent: 'center' }, addScreenButtonText: { color: '#171812', fontSize: 12, fontWeight: '800' },
   eventPickerSheet: { backgroundColor: '#191A17', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: '#34352D', paddingHorizontal: 22, paddingTop: 10, paddingBottom: 22, maxHeight: '76%' }, eventList: { marginTop: 14 }, eventOption: { minHeight: 62, borderBottomWidth: 1, borderBottomColor: '#2B2C25', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, eventOptionCopy: { flex: 1, paddingVertical: 11, paddingRight: 12 }, calendarCheck: { color: '#D7F36A', fontWeight: '800', fontSize: 16 }, calendarPickButton: { color: '#D7F36A', fontSize: 11, fontWeight: '700', marginTop: 12 }, closeSheetButton: { height: 46, marginTop: 14, backgroundColor: '#D7F36A', borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, closeSheetText: { color: '#171812', fontWeight: '800', fontSize: 12 },
-<<<<<<< HEAD
-=======
   createScratchButton: { minHeight: 69, flexDirection: 'row', alignItems: 'center', backgroundColor: '#191A17', borderRadius: 16, borderWidth: 1, borderColor: '#3B3D32', paddingHorizontal: 14, marginTop: 8, marginBottom: 8 }, createScratchIcon: { color: '#D7F36A', fontSize: 24, marginRight: 12 }, typeButton: { flexGrow: 1, minWidth: '30%', minHeight: 40, paddingHorizontal: 10, borderRadius: 11, borderWidth: 1, borderColor: '#34352D', alignItems: 'center', justifyContent: 'center', backgroundColor: '#20211D' }, scratchEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }, scratchStar: { color: '#D7F36A', fontSize: 28 }, scratchInput: { height: 44, marginTop: 10, borderWidth: 1, borderColor: '#37382F', borderRadius: 11, backgroundColor: '#23241F', paddingHorizontal: 12, color: '#F1EFE7', fontSize: 12 }, toggleRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, toggleTrack: { width: 43, height: 25, borderRadius: 13, padding: 3, justifyContent: 'center', backgroundColor: '#42433B' }, toggleTrackActive: { backgroundColor: '#647A2B' }, toggleThumb: { width: 19, height: 19, borderRadius: 10, backgroundColor: '#F0EFE7' }, toggleThumbActive: { alignSelf: 'flex-end', backgroundColor: '#D7F36A' }, sampleContent: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 5 }, sampleLarge: { padding: 8 }, clockFace: { width: 96, height: 96, borderRadius: 15, borderWidth: 1, borderColor: '#717268', backgroundColor: '#191A17', alignItems: 'center', justifyContent: 'center', position: 'relative' }, clockFaceLarge: { width: 152, height: 152, borderRadius: 100 }, clockTick: { position: 'absolute', borderRadius: 3 }, clockNumber: { position: 'absolute', color: '#F1EFE7', fontSize: 11, fontWeight: '700' }, clockNumberLarge: { fontSize: 18 }, clockHandPivot: { position: 'absolute', width: 0, height: 0 }, clockHand: { position: 'absolute', borderRadius: 2 }, clockPin: { position: 'absolute', width: 7, height: 7, borderRadius: 4 }, analogWrap: { alignItems: 'center' }, clockPairRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' }, digitalFace: { alignItems: 'center', justifyContent: 'center' }, digitalFaceLarge: { gap: 7 }, flipClockFace: { padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#62645A', backgroundColor: '#1B1C19' }, digitalTime: { color: '#D7F36A', fontSize: 20, fontWeight: '700', letterSpacing: -0.5 }, digitalTimeLarge: { fontSize: 38, letterSpacing: -1.3 }, digitalDate: { color: '#96978B', fontSize: 8, letterSpacing: 1, textAlign: 'center', marginTop: 5 }, sampleIcon: { color: '#D7F36A', fontSize: 20, marginBottom: 4 }, sampleValue: { color: '#D7F36A', fontSize: 15, fontWeight: '700', textAlign: 'center' }, stepsValue: { fontSize: 21, fontWeight: '700' }, stepsTrack: { width: '85%', height: 5, backgroundColor: '#393A33', borderRadius: 3, overflow: 'hidden', marginTop: 8 }, stepsFill: { height: '100%', borderRadius: 3 }, stepsBars: { height: 78, flexDirection: 'row', alignItems: 'flex-end', gap: 5 }, stepsBar: { width: 8, borderRadius: 5 },
->>>>>>> origin/master
 });

@@ -1,6 +1,10 @@
 {
   "name": "widget-studio",
+<<<<<<< HEAD
   "version": "1.0.0",
+=======
+  "version": "1.0.2",
+>>>>>>> origin/master
   "private": true,
   "main": "index.js",
   "scripts": {

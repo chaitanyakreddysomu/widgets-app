@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Widget Studio",
+    "slug": "widget-studio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "com.widgetstudio.customwidgets",
+      "adaptiveIcon": { "backgroundColor": "#10110F" }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.widgetstudio.customwidgets"
+    },
+    "plugins": [
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Widget Studio needs read access so you can choose one event for your calendar widget.",
+          "remindersPermission": false
+        }
+      ],
+      [
+        "@appeeky/expo-healthkit",
+        {
+          "healthSharePermission": "Widget Studio reads only the health data for the Health widget you choose.",
+          "healthUpdatePermission": false,
+          "healthConnectPermissions": ["READ_STEPS", "READ_SLEEP"]
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "enableAndroid": true,
+          "widgets": [
+            {
+              "name": "StudioWidget",
+              "displayName": "Widget Studio",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": ["systemSmall", "systemMedium", "systemLarge"],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            }
+          ]
+        }
+      ]
+    ]
+  }
+}

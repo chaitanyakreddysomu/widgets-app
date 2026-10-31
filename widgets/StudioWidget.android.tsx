@@ -1,33 +1,21 @@
-<<<<<<< HEAD
-import { Box, Column, Text } from '@expo/ui/jetpack-compose';
-import { createWidget } from 'expo-widgets';
-import { background, clip, fillMaxSize, paddingAll, Shapes } from '@expo/ui/jetpack-compose/modifiers';
-=======
 import { Box, Column, Row, Text } from '@expo/ui/jetpack-compose';
 import { createWidget } from 'expo-widgets';
 import { background, border, clip, fillMaxSize, height, paddingAll, rotate, Shapes, size, width } from '@expo/ui/jetpack-compose/modifiers';
->>>>>>> origin/master
 type ContentAlignment = 'topStart' | 'topCenter' | 'topEnd' | 'centerStart' | 'center' | 'centerEnd' | 'bottomStart' | 'bottomCenter' | 'bottomEnd';
 
 type WidgetColors = {
   background: string; border: string; icon: string; value: string; title: string; subtitle: string; meta: string;
 };
 type WidgetPositions = { iconX: number; iconY: number; textX: number; textY: number };
-<<<<<<< HEAD
-=======
 type ClockHandColors = { hour: string; minute: string; second: string; separator: string };
->>>>>>> origin/master
 type StudioWidgetProps = {
   title: string; subtitle: string; value: string; accent: string; icon: string; size: string;
   widgetKind: string; monthTitle: string; monthRows: string[];
   layoutMode: 'Fixed' | 'Adaptive'; widthCells: number; heightCells: number; shape: string; theme: string;
   colors: WidgetColors; positions: WidgetPositions; gradientEnd: string;
-<<<<<<< HEAD
-=======
   clockMode: string; timeFormat: string; showSeconds: boolean; showPeriod: boolean; clockStyle: string; stepStyle: string; stepGoal: number;
   clockZone: string; secondClockZone: string; showSecondClock: boolean;
   clockHandColors: ClockHandColors; analogClockStyle: string; digitalClockStyle: string;
->>>>>>> origin/master
 };
 
 const StudioWidget = (props: StudioWidgetProps) => {
@@ -40,9 +28,6 @@ const StudioWidget = (props: StudioWidgetProps) => {
   };
   const widgetShape = props.shape === 'Circle' ? Shapes.Circle
     : props.shape === 'Pill' ? Shapes.Material.Pill
-<<<<<<< HEAD
-      : props.shape === 'Square' ? Shapes.Rectangle : Shapes.RoundedCorner(22);
-=======
       : props.shape === 'Square' ? Shapes.Rectangle
         : props.shape === 'Cut corner' ? Shapes.CutCorner(20)
           : props.shape === 'Diamond' ? Shapes.Material.Diamond
@@ -50,7 +35,6 @@ const StudioWidget = (props: StudioWidgetProps) => {
               : props.shape === 'Arch' ? Shapes.Material.Arch
                 : props.shape === 'Hexagon' ? Shapes.Material.Cookie6Sided
                   : props.shape === 'Squircle' ? Shapes.RoundedCorner(32) : Shapes.RoundedCorner(22);
->>>>>>> origin/master
   const glass = props.theme === 'Liquid Glass';
   const fill = glass ? '#38FFFFFF' : props.colors.background;
   const border = glass ? '#72FFFFFF' : props.colors.border;
@@ -60,27 +44,19 @@ const StudioWidget = (props: StudioWidgetProps) => {
     <Box modifiers={[fillMaxSize(), clip(widgetShape), background(border), paddingAll(1)]}>
       <Box modifiers={[fillMaxSize(), clip(widgetShape), background(fill), paddingAll(12)]}>
         {props.theme === 'Gradient' && <Box contentAlignment="bottomEnd" modifiers={[fillMaxSize(0.72), clip(widgetShape), background(gradientTint)]} />}
-<<<<<<< HEAD
-        {props.widgetKind === 'calendar' ? <Column>
-=======
         {props.widgetKind.startsWith('clock-') ? <ClockSample props={props} glass={glass} />
           : props.widgetKind === 'calendar' ? <Column>
->>>>>>> origin/master
           <Text color={glass ? '#FFFFFF' : props.colors.title} style={{ fontSize: 16, fontWeight: '700' }}>{props.monthTitle}</Text>
           <Text color={glass ? '#E8EDF4' : props.colors.meta} style={{ fontSize: 8, fontWeight: '700' }}>Su  Mo  Tu  We  Th  Fr  Sa</Text>
           {props.monthRows.map((row, index) => <Text key={index} color={glass ? '#FFFFFF' : props.colors.value} style={{ fontSize: 9 }}>{row}</Text>)}
           <Text color={glass ? '#FFFFFF' : props.colors.title} style={{ fontSize: 10, fontWeight: '700' }}>{props.title}</Text>
           <Text color={glass ? '#E8EDF4' : props.colors.subtitle} style={{ fontSize: 8 }}>{props.subtitle}</Text>
-<<<<<<< HEAD
-        </Column> : <>
-=======
         </Column> : props.widgetKind.includes('steps') ? <Column>
           <Text color={glass ? '#FFFFFF' : props.colors.value} style={{ fontSize: 28, fontWeight: '700' }}>{props.value}</Text>
           <Text color={glass ? '#E8EDF4' : props.colors.subtitle} style={{ fontSize: 10 }}>of {props.stepGoal.toLocaleString()} steps</Text>
           <Text color={glass ? '#FFFFFF' : props.colors.icon} style={{ fontSize: 13, letterSpacing: 1 }}>● ● ● ● ● ● ● ● ○ ○</Text>
           <Text color={glass ? '#E8EDF4' : props.colors.meta} style={{ fontSize: 9 }}>{props.stepStyle}</Text>
         </Column> : <Box modifiers={[fillMaxSize()]}>
->>>>>>> origin/master
           <Box contentAlignment={alignmentFor(props.positions.iconX, props.positions.iconY)} modifiers={[fillMaxSize()]}>
             <Text color={glass ? '#FFFFFF' : props.colors.icon} style={{ fontSize: 22, fontWeight: '700' }}>{props.icon}</Text>
           </Box>
@@ -92,19 +68,12 @@ const StudioWidget = (props: StudioWidgetProps) => {
               <Text color={glass ? '#E8EDF4' : props.colors.subtitle} style={{ fontSize: 10 }}>{props.subtitle}</Text>
             </Column>
           </Box>
-<<<<<<< HEAD
-        </>}
-=======
         </Box>}
->>>>>>> origin/master
       </Box>
     </Box>
   );
 };
 
-<<<<<<< HEAD
-export default createWidget('StudioWidget', StudioWidget, {
-=======
 function ClockSample({ props, glass }: { props: StudioWidgetProps; glass: boolean }) {
   const accent = glass ? '#FFFFFF' : props.colors.icon;
   const analog = props.widgetKind === 'clock-analog' || props.clockMode === 'Analog' || props.clockMode === 'Both';
@@ -206,7 +175,6 @@ function DigitalFace({ props, glass, zone, time }: { props: StudioWidgetProps; g
 }
 
 const defaultWidgetProps: StudioWidgetProps = {
->>>>>>> origin/master
   title: 'Soft Hours',
   subtitle: 'A calmer way to check the time',
   value: '09:41',
@@ -214,11 +182,8 @@ const defaultWidgetProps: StudioWidgetProps = {
   icon: '◷',
   size: 'ADAPTIVE',
   widgetKind: 'clock-digital',
-<<<<<<< HEAD
-=======
   clockMode: 'Digital', timeFormat: '12-hour', showSeconds: true, showPeriod: true, clockStyle: 'Clean digital', analogClockStyle: 'Classic numerals', digitalClockStyle: 'Clean digital', clockHandColors: { hour: '#D7F36A', minute: '#F1EFE7', second: '#FF796D', separator: '#F1EFE7' }, stepStyle: 'Step ring', stepGoal: 10000,
   clockZone: 'local', secondClockZone: 'Asia/Tokyo', showSecondClock: false,
->>>>>>> origin/master
   monthTitle: 'January 2026',
   monthRows: [' 1  2  3  4  5  6  7'],
   layoutMode: 'Adaptive',
@@ -229,9 +194,6 @@ const defaultWidgetProps: StudioWidgetProps = {
   colors: { background: '#24251F', border: '#3C4030', icon: '#D7F36A', value: '#D7F36A', title: '#F1EFE7', subtitle: '#A6A79A', meta: '#A6A79A' },
   positions: { iconX: 8, iconY: 10, textX: 10, textY: 42 },
   gradientEnd: '#536B84',
-<<<<<<< HEAD
-});
-=======
 };
 
 const primaryWidget = createWidget('StudioWidget', StudioWidget, defaultWidgetProps);
@@ -250,4 +212,3 @@ export const widgetSlots: Record<string, typeof primaryWidget> = {
   StudioWidget11: createWidget('StudioWidget11', StudioWidget, defaultWidgetProps),
   StudioWidget12: createWidget('StudioWidget12', StudioWidget, defaultWidgetProps),
 };
->>>>>>> origin/master

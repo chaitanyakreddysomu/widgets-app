@@ -2,15 +2,6 @@
   "expo": {
     "name": "Widget Studio",
     "slug": "widget-studio",
-<<<<<<< HEAD
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "assetBundlePatterns": ["**/*"],
-    "android": {
-      "package": "com.widgetstudio.customwidgets",
-      "adaptiveIcon": { "backgroundColor": "#10110F" }
-=======
     "version": "1.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -22,7 +13,6 @@
       "adaptiveIcon": {
         "backgroundColor": "#10110F"
       }
->>>>>>> origin/master
     },
     "ios": {
       "supportsTablet": true,
@@ -42,14 +32,10 @@
         {
           "healthSharePermission": "Widget Studio reads only the health data for the Health widget you choose.",
           "healthUpdatePermission": false,
-<<<<<<< HEAD
-          "healthConnectPermissions": ["READ_STEPS", "READ_SLEEP"]
-=======
           "healthConnectPermissions": [
             "READ_STEPS",
             "READ_SLEEP"
           ]
->>>>>>> origin/master
         }
       ],
       [
@@ -62,9 +48,6 @@
               "displayName": "Widget Studio",
               "description": "Your custom widget, made in Widget Studio.",
               "ios": {
-<<<<<<< HEAD
-                "supportedFamilies": ["systemSmall", "systemMedium", "systemLarge"],
-=======
                 "supportedFamilies": [
                   "systemSmall",
                   "systemMedium",
@@ -279,7 +262,6 @@
                   "systemMedium",
                   "systemLarge"
                 ],
->>>>>>> origin/master
                 "initialLayout": "widgets/StudioWidget.ios.tsx"
               },
               "android": {

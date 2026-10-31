@@ -6,7 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Calendar from 'expo-calendar';
 import * as Battery from 'expo-battery';
-import { File, Paths } from 'expo-file-system';
+import { Paths } from 'expo-file-system';
 import { NativeModules } from 'react-native';
 
 type Widget = { id: string; title: string; subtitle: string; type: string; icon: string; accent: string; label: string; style: string };
@@ -83,15 +83,11 @@ type NativeWidget = {
 };
 type NativeWidgetModule = { widgetSlots: Record<string, NativeWidget> };
 type StorageInfo = { totalBytes: number; availableBytes: number; usedBytes: number };
-type NowPlaying = { title?: string; artist?: string; album?: string; isPlaying?: boolean };
 type StudioNative = {
   pinWidget: (name: string) => Promise<boolean>;
   getAvailableWidgetSlot: (names: string[]) => Promise<string | null>;
-  installApk: (path: string) => Promise<void>;
   getBuildVersion: () => Promise<string>;
   getStorageInfo: () => Promise<StorageInfo>;
-  getNowPlaying: () => Promise<NowPlaying | null>;
-  openNotificationListenerSettings: () => Promise<void>;
 };
 const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
 const widgetSlotNames = ['StudioWidget', ...Array.from({ length: 11 }, (_, index) => `StudioWidget${index + 2}`)];
@@ -164,10 +160,6 @@ function WidgetStudio() {
   const [calendarEvents, setCalendarEvents] = useState<Calendar.ExpoCalendarEvent[]>([]);
   const [calendarEvent, setCalendarEvent] = useState<Calendar.ExpoCalendarEvent | null>(null);
   const [calendarGranted, setCalendarGranted] = useState(false);
-  const [updatesVisible, setUpdatesVisible] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'current' | 'error' | 'downloading'>('idle');
-  const [updateUrl, setUpdateUrl] = useState('');
-  const [updateVersion, setUpdateVersion] = useState('');
   const [clockMode, setClockMode] = useState('Analog');
   const [timeFormat, setTimeFormat] = useState<'12-hour' | '24-hour'>('12-hour');
   const [showSeconds, setShowSeconds] = useState(true);
@@ -293,14 +285,6 @@ function WidgetStudio() {
         const used = storage.usedBytes;
         return { label: `${formatBytes(used)} used`, subtitle: `${formatBytes(available)} free of ${formatBytes(total)}` };
       } catch { }
-    } else if (widget.id === 'music') {
-      try {
-        const nowPlaying = Platform.OS === 'android' && StudioAndroid ? await StudioAndroid.getNowPlaying() : null;
-        if (nowPlaying?.title) {
-          const artist = [nowPlaying.artist, nowPlaying.album].filter(Boolean).join(' · ');
-          return { title: nowPlaying.title, subtitle: artist || 'Unknown artist', label: nowPlaying.isPlaying ? 'Playing' : 'Paused' };
-        }
-      } catch { }
     }
     return {};
   };
@@ -341,17 +325,6 @@ function WidgetStudio() {
       void refreshSelectedData(widget).then((liveData) => setSelected((current) => current.id === widget.id ? { ...current, ...liveData } : current));
     }
     if (widget.id === 'calendar') void openCalendarPicker();
-    if (widget.id === 'music') void refreshSelectedData(widget).then((liveData) => {
-      if (Object.keys(liveData).length) {
-        setSelected((current) => current.id === widget.id ? { ...current, ...liveData } : current);
-        return;
-      }
-      if (Platform.OS === 'android' && StudioAndroid) Alert.alert(
-        'Connect now playing',
-        'Allow Notification access for Widget Studio. It can then read the title and artist from the music app currently showing a media notification.',
-        [{ text: 'Not now', style: 'cancel' }, { text: 'Open settings', onPress: () => { void StudioAndroid.openNotificationListenerSettings(); } }],
-      );
-    });
   };
   const startFromScratch = () => {
     setSelected(scratchWidget);
@@ -437,39 +410,6 @@ function WidgetStudio() {
     }
   };
 
-  const checkForUpdates = async () => {
-    setUpdateStatus('checking');
-    try {
-      const response = await fetch('https://api.github.com/repos/chaitanyakreddysomu/widgets-app/releases/latest', { headers: { Accept: 'application/vnd.github+json' } });
-      if (!response.ok) throw new Error('Could not reach the update service.');
-      const release = await response.json() as { tag_name?: string; assets?: { name: string; browser_download_url: string }[] };
-      const apk = release.assets?.find((asset) => asset.name.toLowerCase().endsWith('.apk'));
-      if (!apk) throw new Error('No APK is attached to the latest release yet.');
-      const latest = Number(release.tag_name?.replace(/^build-/, ''));
-      const installed = Number(Platform.OS === 'android' && StudioAndroid ? await StudioAndroid.getBuildVersion() : '0');
-      if (Number.isFinite(latest) && latest <= installed) { setUpdateStatus('current'); return; }
-      setUpdateVersion(release.tag_name ?? 'Latest release');
-      setUpdateUrl(apk.browser_download_url);
-      setUpdateStatus('available');
-    } catch (error) {
-      setUpdateStatus('error');
-      Alert.alert('Update check failed', error instanceof Error ? error.message : 'Please try again later.');
-    }
-  };
-  const downloadAndInstallUpdate = async () => {
-    if (!updateUrl || !StudioAndroid) {
-      Alert.alert('Update unavailable', 'In-app installation is available in the Android release build.');
-      return;
-    }
-    setUpdateStatus('downloading');
-    try {
-      const file = await File.downloadFileAsync(updateUrl, new File(Paths.cache, 'widget-studio-update.apk'));
-      await StudioAndroid.installApk(file.uri);
-    } catch (error) {
-      setUpdateStatus('available');
-      Alert.alert('Download failed', error instanceof Error ? error.message : 'Please try again.');
-    }
-  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -487,8 +427,6 @@ function WidgetStudio() {
         {tab === 'Settings' && (
           <View style={styles.settingsCard}>
             <View style={styles.settingsIntro}><Text style={styles.settingsIntroIcon}>⚙︎</Text><View><Text style={styles.sectionTitle}>Studio settings</Text><Text style={styles.sectionSub}>A few details about your setup.</Text></View></View>
-            <View style={styles.divider} />
-            <Pressable onPress={() => { setUpdatesVisible(true); void checkForUpdates(); }} style={styles.settingsRow}><View><Text style={styles.controlTitle}>Update app</Text><Text style={styles.controlSub}>Check for the latest Widget Studio release</Text></View><Text style={styles.settingsChevron}>›</Text></Pressable>
             <View style={styles.divider} />
             <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Appearance</Text><Text style={styles.controlSub}>Dark · soft contrast</Text></View><Text style={styles.settingsValue}>●</Text></View>
             <View style={styles.divider} />
@@ -593,7 +531,7 @@ function WidgetStudio() {
               {selected.type === 'Weather' && <View style={styles.customCard}><Text style={styles.controlTitle}>Forecast layout</Text><Text style={styles.controlSub}>Choose how much weather to show.</Text><OptionPicker options={['Current conditions', 'Hourly forecast', 'Three-day forecast']} value={selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value, label: value === 'Hourly forecast' ? '24°  25°  23°' : value === 'Three-day forecast' ? 'Today 24° · Sat 26°' : '24°' }))} /></View>}
               {selected.type === 'Battery' && <View style={styles.customCard}><Text style={styles.controlTitle}>Battery display</Text><Text style={styles.controlSub}>Choose the battery detail to emphasize.</Text><OptionPicker options={['Ring percentage', 'Compact percentage', 'Remaining time']} value={selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value, label: value === 'Remaining time' ? '3h 14m left' : '82%' }))} /></View>}
               {selected.type === 'Calendar' && <View style={styles.customCard}><Text style={styles.controlTitle}>Calendar layout</Text><Text style={styles.controlSub}>Show the month or focus on your selected event.</Text><OptionPicker options={['Monthly calendar', 'Next event', 'Agenda list']} value={selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value }))} /></View>}
-              {selected.type === 'Music' && <View style={styles.customCard}><Text style={styles.controlTitle}>Music layout</Text><Text style={styles.controlSub}>Choose how the track and controls appear.</Text><OptionPicker options={['Album artwork', 'Playback controls', 'Track and progress']} value={selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value }))} /></View>}
+              {selected.type === 'Music' && <View style={styles.customCard}><Text style={styles.controlTitle}>Music layout</Text><Text style={styles.controlSub}>Set the track details yourself; Widget Studio does not read other apps or notifications.</Text><OptionPicker options={['Album artwork', 'Playback controls', 'Track and progress']} value={selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value }))} /><TextInput value={selected.title} onChangeText={(title) => setSelected((current) => ({ ...current, title }))} placeholder="Track title" placeholderTextColor="#77786F" style={styles.scratchInput} /><TextInput value={selected.subtitle} onChangeText={(subtitle) => setSelected((current) => ({ ...current, subtitle }))} placeholder="Artist or album" placeholderTextColor="#77786F" style={styles.scratchInput} /></View>}
               {selected.type === 'Storage' && <View style={styles.customCard}><Text style={styles.controlTitle}>Storage layout</Text><Text style={styles.controlSub}>Choose which storage details are visible.</Text><OptionPicker options={['Used and free', 'Storage ring', 'Category breakdown']} value={selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value }))} /></View>}
               {selected.type === 'Text' && <View style={styles.customCard}><Text style={styles.controlTitle}>Your text</Text><Text style={styles.controlSub}>Set a title and a short line for your widget.</Text><TextInput value={selected.title} onChangeText={(title) => setSelected((current) => ({ ...current, title }))} placeholder="Title" placeholderTextColor="#77786F" style={styles.scratchInput} /><TextInput value={selected.label} onChangeText={(label) => setSelected((current) => ({ ...current, label }))} placeholder="Your text" placeholderTextColor="#77786F" style={styles.scratchInput} /></View>}
               {selected.type !== 'Custom' && <Pressable onPress={addToHomeScreen} style={styles.addHomeButton}>
@@ -627,13 +565,6 @@ function WidgetStudio() {
             </View>
           </View>
         </View>
-      </Modal>
-      <Modal visible={updatesVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setUpdatesVisible(false)}>
-        <View style={styles.sheetOverlay}><Pressable style={styles.sheetScrim} onPress={() => setUpdatesVisible(false)} /><View style={styles.widgetSheet}>
-          <View style={styles.sheetHandle} /><Text style={styles.sheetEyebrow}>WIDGET STUDIO</Text><Text style={styles.sheetTitle}>App updates</Text>
-          <Text style={styles.controlSub}>{updateStatus === 'checking' ? 'Checking for updates…' : updateStatus === 'available' ? `Version ${updateVersion} is ready to download.` : updateStatus === 'current' ? 'You’re up to date.' : updateStatus === 'downloading' ? 'Downloading update… Android will ask you to install it when ready.' : updateStatus === 'error' ? 'Could not check for updates. Try again.' : 'Check GitHub Releases for the newest version.'}</Text>
-          <View style={styles.sheetActions}>{updateStatus === 'available' ? <Pressable onPress={downloadAndInstallUpdate} style={styles.addScreenButton}><Text style={styles.addScreenButtonText}>Download & install</Text></Pressable> : <Pressable disabled={updateStatus === 'checking' || updateStatus === 'downloading'} onPress={() => void checkForUpdates()} style={styles.addScreenButton}><Text style={styles.addScreenButtonText}>{updateStatus === 'checking' || updateStatus === 'downloading' ? 'Please wait…' : updateStatus === 'current' ? 'Check again' : 'Check for updates'}</Text></Pressable>}</View>
-        </View></View>
       </Modal>
       <Modal visible={eventPickerVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setEventPickerVisible(false)}>
         <View style={styles.sheetOverlay}>

@@ -44,8 +44,8 @@ module.exports = function withWidgetStudioAndroid(config) {
     const nativeModulePath = path.join(sourceDir, 'WidgetStudioNativePackage.kt');
     let nativeModule = fs.readFileSync(nativeModulePath, 'utf8');
     nativeModule = nativeModule.replace(
-      'import android.content.ComponentName\\n',
-      'import android.content.ComponentName\\nimport android.content.Context\\nimport android.media.session.MediaSessionManager\\nimport android.media.session.PlaybackState\\nimport android.os.Environment\\nimport android.os.StatFs\\nimport android.provider.Settings\\nimport android.service.notification.NotificationListenerService\\n',
+      'import android.content.ComponentName\n',
+      'import android.content.ComponentName\nimport android.content.Context\nimport android.media.session.MediaSessionManager\nimport android.media.session.PlaybackState\nimport android.os.Environment\nimport android.os.StatFs\nimport android.provider.Settings\nimport android.service.notification.NotificationListenerService\n',
     );
     nativeModule = nativeModule.replace('  @ReactMethod fun getAvailableWidgetSlot', `  @ReactMethod fun getStorageInfo(promise: Promise) {
     try {

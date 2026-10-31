@@ -71,8 +71,6 @@ type WidgetColors = Record<ColorKey, string>;
 type ClockColorKey = 'hour' | 'minute' | 'second' | 'separator';
 type ClockHandColors = Record<ClockColorKey, string>;
 const defaultClockHandColors: ClockHandColors = { hour: '#D7F36A', minute: '#F1EFE7', second: '#FF796D', separator: '#F1EFE7' };
-type HealthApi = typeof import('@appeeky/expo-healthkit');
-const getHealthApi = () => require('@appeeky/expo-healthkit') as HealthApi;
 type NativeWidget = {
   updateSnapshot: (props: {
     title: string; subtitle: string; value: string; accent: string; icon: string; size: string; widgetKind: string; monthTitle: string; monthRows: string[];
@@ -166,7 +164,6 @@ function WidgetStudio() {
   const [calendarEvents, setCalendarEvents] = useState<Calendar.ExpoCalendarEvent[]>([]);
   const [calendarEvent, setCalendarEvent] = useState<Calendar.ExpoCalendarEvent | null>(null);
   const [calendarGranted, setCalendarGranted] = useState(false);
-  const [healthRequested, setHealthRequested] = useState<Record<string, boolean>>({});
   const [updatesVisible, setUpdatesVisible] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'current' | 'error' | 'downloading'>('idle');
   const [updateUrl, setUpdateUrl] = useState('');
@@ -184,7 +181,6 @@ function WidgetStudio() {
   const [clockNow, setClockNow] = useState(Date.now());
   const [stepGoal, setStepGoal] = useState(10000);
   const [stepStyle, setStepStyle] = useState('Step ring');
-  const [healthMetric, setHealthMetric] = useState<'Steps' | 'Sleep'>('Steps');
   const activePosition = useRef(new Animated.Value(0)).current;
   const pageOpacity = useRef(new Animated.Value(1)).current;
   const pageOffset = useRef(new Animated.Value(0)).current;
@@ -277,44 +273,6 @@ function WidgetStudio() {
     }
   };
 
-  const ensureHealthAccess = async (widget: Widget) => {
-    let Health: HealthApi;
-    try {
-      Health = getHealthApi();
-    } catch {
-      Alert.alert('Development build needed', 'Health data is available only in a development build with the HealthKit / Health Connect native module installed.');
-      return false;
-    }
-    const isSteps = widget.id.includes('steps') || (widget.id === 'custom' && widget.style.startsWith('Step'));
-    const identifier = isSteps ? Health.QuantityType.stepCount : Health.CategoryType.sleepAnalysis;
-    const label = isSteps ? 'today’s steps' : 'sleep data';
-    if (!Health.isAvailable()) {
-      Alert.alert('Health data unavailable', Platform.OS === 'android' ? 'Install or enable Health Connect first. In Samsung Health, turn on Health Connect sharing for Steps and Sleep, then return here.' : 'HealthKit is not available on this device.');
-      return false;
-    }
-    if (Health.getUnsupportedTypes([identifier]).length > 0) {
-      Alert.alert('Health data unavailable', `This device does not support ${label}.`);
-      return false;
-    }
-    if (!healthRequested[widget.id]) {
-      const proceed = await askBeforeSystemPermission(
-        `Allow ${label}?`,
-        `Widget Studio needs read access to ${label} for this widget. It will not write health records.`,
-      );
-      if (!proceed) return false;
-      try {
-        await Health.requestAuthorization({ toRead: [identifier] });
-        setHealthRequested((current) => ({ ...current, [widget.id]: true }));
-      } catch {
-        Alert.alert('Health access unavailable', 'The Health Connect permission screen could not be opened. Use a development build and, on Samsung, enable Samsung Health → Health Connect sharing first.');
-        return false;
-      }
-    }
-    const liveData = await refreshSelectedData(widget);
-    setSelected((current) => current.id === widget.id ? { ...current, ...liveData } : current);
-    return true;
-  };
-
   const openCalendarPicker = async () => {
     if (await ensureCalendarAccess()) await loadCalendarEvents();
   };
@@ -342,33 +300,6 @@ function WidgetStudio() {
           const artist = [nowPlaying.artist, nowPlaying.album].filter(Boolean).join(' · ');
           return { title: nowPlaying.title, subtitle: artist || 'Unknown artist', label: nowPlaying.isPlaying ? 'Playing' : 'Paused' };
         }
-      } catch { }
-    } else if (widget.id.includes('steps') || (widget.id === 'custom' && widget.type === 'Health' && widget.style.startsWith('Step'))) {
-      try {
-        const Health = getHealthApi();
-        const now = new Date();
-        const today = new Date(now);
-        today.setHours(0, 0, 0, 0);
-        const steps = await Health.queryStatistics({
-          type: Health.QuantityType.stepCount,
-          unit: Health.Unit.count,
-          from: today,
-          to: now,
-          options: Health.StatisticsOption.cumulativeSum,
-        });
-        return { label: `${Math.round(steps.sum ?? 0).toLocaleString()} steps` };
-      } catch {}
-    } else if (widget.id === 'health-sleep') {
-      try {
-        const Health = getHealthApi();
-        const now = new Date();
-        const from = new Date(now);
-        from.setDate(from.getDate() - 1);
-        from.setHours(18, 0, 0, 0);
-        const samples = await Health.queryCategorySamples({ type: Health.CategoryType.sleepAnalysis, from, to: now });
-        const sleepValues: number[] = [Health.SleepAnalysisValue.asleepUnspecified, Health.SleepAnalysisValue.asleepCore, Health.SleepAnalysisValue.asleepDeep, Health.SleepAnalysisValue.asleepREM];
-        const asleepMs = samples.filter((sample) => sleepValues.includes(sample.value)).reduce((total, sample) => total + (sample.endDate.getTime() - sample.startDate.getTime()), 0);
-        return { label: asleepMs ? `${Math.floor(asleepMs / 3600000)}h ${Math.floor((asleepMs % 3600000) / 60000)}m` : 'No sleep data' };
       } catch { }
     }
     return {};
@@ -404,16 +335,12 @@ function WidgetStudio() {
       else setDigitalClockStyle(widget.style);
     }
     if (widget.type === 'Clock') setShowSeconds(widget.id.startsWith('clock-digital') ? widget.style !== 'Clean digital' : true);
-    if (widget.id === 'health-sleep') setHealthMetric('Sleep');
-    if (widget.id.includes('steps')) setHealthMetric('Steps');
-    if (widget.id.startsWith('health-steps')) setStepStyle(widget.style);
     setShowSecondClock(false);
     setSaved(false);
     if (widget.id === 'battery' || widget.id === 'storage') {
       void refreshSelectedData(widget).then((liveData) => setSelected((current) => current.id === widget.id ? { ...current, ...liveData } : current));
     }
     if (widget.id === 'calendar') void openCalendarPicker();
-    if (widget.type === 'Health') void ensureHealthAccess(widget);
     if (widget.id === 'music') void refreshSelectedData(widget).then((liveData) => {
       if (Object.keys(liveData).length) {
         setSelected((current) => current.id === widget.id ? { ...current, ...liveData } : current);
@@ -429,7 +356,7 @@ function WidgetStudio() {
   const startFromScratch = () => {
     setSelected(scratchWidget);
     resetDesign(scratchWidget.accent);
-    setClockMode('Analog'); setTimeFormat('12-hour'); setShowSeconds(true); setShowPeriod(true); setStepStyle('Step ring'); setHealthMetric('Steps');
+    setClockMode('Analog'); setTimeFormat('12-hour'); setShowSeconds(true); setShowPeriod(true); setStepStyle('Step ring');
     setSaved(false);
     changeTab('Customize');
   };
@@ -460,7 +387,6 @@ function WidgetStudio() {
     setTimeout(addToHomeScreen, 300);
   };
   const addToHomeScreen = async () => {
-    if (selected.type === 'Health' && !(await ensureHealthAccess(selected))) return;
     if (selected.type === 'Calendar') {
       if (!(await ensureCalendarAccess())) return;
       if (!calendarEvent) {
@@ -487,7 +413,7 @@ function WidgetStudio() {
         subtitle: selected.type === 'Calendar' && calendarEvent ? formatEventDate(calendarEvent.startDate) : selectedForSnapshot.subtitle,
         value: selected.type === 'Calendar' && calendarEvent ? formatEventDate(calendarEvent.startDate) : selected.type === 'Clock' ? formatClockTime(clockNow, clockZone, timeFormat, showSeconds, showPeriod) : selectedForSnapshot.label,
         accent: colors.value, icon: selected.icon, size: sizeLabel,
-        widgetKind: selected.type === 'Clock' ? `clock-${clockMode.toLowerCase()}` : selected.id === 'custom' && selected.type === 'Health' ? 'health-steps' : selected.id === 'custom' ? selected.type.toLowerCase() : selected.id, monthTitle, monthRows,
+        widgetKind: selected.type === 'Clock' ? `clock-${clockMode.toLowerCase()}` : selected.id === 'custom' ? selected.type.toLowerCase() : selected.id, monthTitle, monthRows,
         layoutMode, widthCells: fixedWidth, heightCells: fixedHeight, shape, theme, colors, positions, gradientEnd,
         clockMode, timeFormat, showSeconds, showPeriod, clockStyle: selected.style, analogClockStyle, digitalClockStyle, clockHandColors, stepStyle, stepGoal, clockZone, secondClockZone, showSecondClock,
       });
@@ -624,10 +550,6 @@ function WidgetStudio() {
                 <Text style={[styles.controlTitle, { marginTop: 15 }]}>Time zones</Text><Text style={styles.controlSub}>Set the time zone for the first clock.</Text><OptionPicker options={timeZones.map((zone) => zone.label)} value={zoneLabel(clockZone)} onSelect={(label) => setClockZone(timeZones.find((zone) => zone.label === label)?.value ?? 'local')} />
                 <ToggleRow label="Show a second clock" value={showSecondClock} onChange={setShowSecondClock} />
                 {showSecondClock && <><Text style={styles.controlSub}>Select a separate zone for the second clock.</Text><OptionPicker options={timeZones.map((zone) => zone.label)} value={zoneLabel(secondClockZone)} onSelect={(label) => setSecondClockZone(timeZones.find((zone) => zone.label === label)?.value ?? 'Asia/Tokyo')} /></>}
-              </View>}
-              {selected.type === 'Health' && <View style={styles.customCard}>
-                {selected.id === 'custom' && <View style={styles.optionGrid}>{(['Steps', 'Sleep'] as const).map((metric) => <Pressable key={metric} onPress={() => { setHealthMetric(metric); setSelected((current) => ({ ...current, style: metric === 'Steps' ? stepStyle : 'Sleep summary', label: metric === 'Steps' ? '8,420 steps' : '7h 42m' })); }} style={[styles.typeButton, healthMetric === metric && styles.optionButtonActive]}><Text style={[styles.optionText, healthMetric === metric && styles.optionTextActive]}>{metric}</Text></Pressable>)}</View>}
-                {healthMetric === 'Steps' ? <><Text style={styles.controlTitle}>Steps display</Text><OptionPicker options={['Step ring', 'Daily goal', 'Weekly bars', 'Simple count']} value={stepStyle} onSelect={(value) => { setStepStyle(value); if (selected.id === 'custom' || selected.id.includes('steps')) setSelected((current) => ({ ...current, style: value, label: value === 'Daily goal' ? '8,420 / 10k' : value === 'Weekly bars' ? 'Mon  Tue  Wed' : '8,420', id: current.id === 'custom' ? 'custom' : `health-steps-${['Step ring', 'Daily goal', 'Weekly bars', 'Simple count'].indexOf(value) + 1}` })); }} /><StepperControl label="Daily step goal" value={stepGoal} unit=" steps" min={1000} max={50000} step={1000} onChange={setStepGoal} /></> : <><Text style={styles.controlTitle}>Sleep display</Text><OptionPicker options={['Sleep summary', 'Sleep stages', 'Bedtime']} value={selected.style === 'Blank' || selected.style.startsWith('Step') ? 'Sleep summary' : selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value, label: value === 'Bedtime' ? '10:42 PM' : '7h 42m' }))} /></>}
               </View>}
               <View style={styles.customCard}>
                 <Text style={styles.controlTitle}>Sizing</Text><Text style={styles.controlSub}>Choose how the widget fits your home screen.</Text>

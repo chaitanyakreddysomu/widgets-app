@@ -36,9 +36,42 @@ const StudioWidget = (props: StudioWidgetProps) => {
                 : props.shape === 'Hexagon' ? Shapes.Material.Cookie6Sided
                   : props.shape === 'Squircle' ? Shapes.RoundedCorner(32) : Shapes.RoundedCorner(22);
   const glass = props.theme === 'Liquid Glass';
-  const fill = glass ? '#38FFFFFF' : props.colors.background;
-  const border = glass ? '#72FFFFFF' : props.colors.border;
+  const transparent = props.theme === 'Transparent';
+  const fill = transparent ? '#00000000' : glass ? '#38FFFFFF' : props.colors.background;
+  const border = transparent ? '#00000000' : glass ? '#72FFFFFF' : props.colors.border;
   const gradientTint = `#55${props.gradientEnd.replace('#', '')}`;
+  // Widget layouts run in an isolated runtime. Keep every helper used by this
+  // component in its function body so it is included in the generated widget
+  // bundle (including the launcher/gallery preview bundle).
+  const ClockSample = ({ props: clockProps, glass: clockGlass }: { props: StudioWidgetProps; glass: boolean }) => {
+    const makeTime = (zone: string) => {
+      const options: Intl.DateTimeFormatOptions = {
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: clockProps.timeFormat === '12-hour' ? 'h12' : 'h23',
+      };
+      if (zone !== 'local') options.timeZone = zone;
+      if (clockProps.showSeconds) options.second = '2-digit';
+      const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(new Date());
+      const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '00';
+      const clock = `${value('hour')}:${value('minute')}${clockProps.showSeconds ? `:${value('second')}` : ''}`;
+      return clockProps.timeFormat === '12-hour' && clockProps.showPeriod ? `${clock} ${value('dayPeriod')}` : clock;
+    };
+    const zoneLabel = (zone: string) => zone === 'local' ? 'LOCAL' : zone.split('/').pop()?.replaceAll('_', ' ').toUpperCase() ?? zone;
+    const analog = clockProps.widgetKind === 'clock-analog' || clockProps.clockMode === 'Analog' || clockProps.clockMode === 'Both';
+    const digital = clockProps.widgetKind === 'clock-digital' || clockProps.clockMode === 'Digital' || clockProps.clockMode === 'Both';
+    const time = makeTime(clockProps.clockZone);
+    const secondTime = makeTime(clockProps.secondClockZone);
+    const primaryColor = clockGlass ? '#FFFFFF' : clockProps.colors.value;
+    const mutedColor = clockGlass ? '#E8EDF4' : clockProps.colors.meta;
+
+    return <Column>
+      {analog && <Text color={primaryColor} style={{ fontSize: clockProps.clockMode === 'Both' ? 30 : 54, fontWeight: '700' }}>◷</Text>}
+      {digital && <Text color={primaryColor} style={{ fontSize: clockProps.clockMode === 'Both' ? 18 : 30, fontWeight: '700' }}>{time}</Text>}
+      {clockProps.showSecondClock && <Text color={primaryColor} style={{ fontSize: 16, fontWeight: '700' }}>{secondTime}</Text>}
+      <Text color={mutedColor} style={{ fontSize: 8 }}>{zoneLabel(clockProps.clockZone)}{clockProps.showSecondClock ? `  ·  ${zoneLabel(clockProps.secondClockZone)}` : ''}</Text>
+    </Column>;
+  };
 
   return (
     <Box modifiers={[fillMaxSize(), clip(widgetShape), background(border), paddingAll(1)]}>
@@ -47,8 +80,8 @@ const StudioWidget = (props: StudioWidgetProps) => {
         {props.widgetKind.startsWith('clock-') ? <ClockSample props={props} glass={glass} />
           : props.widgetKind === 'calendar' ? <Column>
           <Text color={glass ? '#FFFFFF' : props.colors.title} style={{ fontSize: 16, fontWeight: '700' }}>{props.monthTitle}</Text>
-          <Text color={glass ? '#E8EDF4' : props.colors.meta} style={{ fontSize: 8, fontWeight: '700' }}>Su  Mo  Tu  We  Th  Fr  Sa</Text>
-          {props.monthRows.map((row, index) => <Text key={index} color={glass ? '#FFFFFF' : props.colors.value} style={{ fontSize: 9 }}>{row}</Text>)}
+          <Text color={glass ? '#E8EDF4' : props.colors.meta} style={{ fontSize: 8, fontWeight: '700', fontFamily: 'monospace' }}>Su Mo Tu We Th Fr Sa</Text>
+          {props.monthRows.map((row, index) => <Text key={index} color={glass ? '#FFFFFF' : props.colors.value} style={{ fontSize: 9, fontFamily: 'monospace' }}>{row}</Text>)}
           <Text color={glass ? '#FFFFFF' : props.colors.title} style={{ fontSize: 10, fontWeight: '700' }}>{props.title}</Text>
           <Text color={glass ? '#E8EDF4' : props.colors.subtitle} style={{ fontSize: 8 }}>{props.subtitle}</Text>
         </Column> : props.widgetKind.includes('steps') ? <Column>

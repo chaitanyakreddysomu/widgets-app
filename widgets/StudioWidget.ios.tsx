@@ -16,7 +16,7 @@ type StudioWidgetProps = {
 
 const StudioWidget = (props: StudioWidgetProps) => {
   'widget';
-  const fillStyle: ShapeStyle = props.theme === 'Liquid Glass'
+  const fillStyle: ShapeStyle = props.theme === 'Transparent' ? '#00000000' : props.theme === 'Liquid Glass'
     ? { type: 'material', material: 'ultraThin' }
     : props.theme === 'Gradient'
       ? { type: 'linearGradient', colors: [props.colors.background, props.gradientEnd], startPoint: { x: 0, y: 0 }, endPoint: { x: 1, y: 1 } }

@@ -67,7 +67,7 @@ const tabs = [
 type TabName = (typeof tabs)[number]['name'];
 type LayoutMode = 'Fixed' | 'Adaptive';
 type WidgetShape = 'Rounded' | 'Circle' | 'Square' | 'Pill' | 'Squircle' | 'Cut corner' | 'Diamond' | 'Heart' | 'Arch' | 'Hexagon';
-type WidgetTheme = 'Liquid Glass' | 'Solid Color' | 'Gradient';
+type WidgetTheme = 'Liquid Glass' | 'Solid Color' | 'Gradient' | 'Transparent';
 type ColorKey = 'background' | 'border' | 'icon' | 'value' | 'title' | 'subtitle' | 'meta';
 type WidgetColors = Record<ColorKey, string>;
 type ClockColorKey = 'hour' | 'minute' | 'second' | 'separator';
@@ -86,7 +86,17 @@ type NativeWidget = {
   }) => void;
 };
 type NativeWidgetModule = { widgetSlots: Record<string, NativeWidget> };
-type StudioNative = { pinWidget: (name: string) => Promise<boolean>; getAvailableWidgetSlot: (names: string[]) => Promise<string | null>; installApk: (path: string) => Promise<void>; getBuildVersion: () => Promise<string>; };
+type StorageInfo = { totalBytes: number; availableBytes: number; usedBytes: number };
+type NowPlaying = { title?: string; artist?: string; album?: string; isPlaying?: boolean };
+type StudioNative = {
+  pinWidget: (name: string) => Promise<boolean>;
+  getAvailableWidgetSlot: (names: string[]) => Promise<string | null>;
+  installApk: (path: string) => Promise<void>;
+  getBuildVersion: () => Promise<string>;
+  getStorageInfo: () => Promise<StorageInfo>;
+  getNowPlaying: () => Promise<NowPlaying | null>;
+  openNotificationListenerSettings: () => Promise<void>;
+};
 const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
 const widgetSlotNames = ['StudioWidget', ...Array.from({ length: 11 }, (_, index) => `StudioWidget${index + 2}`)];
 const formatBytes = (bytes: number) => {
@@ -202,7 +212,7 @@ function WidgetStudio() {
   const selectedColorLabels = selected.type === 'Clock'
     ? colorLabels.filter(({ key }) => key !== 'icon')
     : colorLabels;
-  const monthNow = new Date();
+  const monthNow = calendarEvent ? new Date(calendarEvent.startDate) : new Date();
   const monthTitle = monthNow.toLocaleDateString([], { month: 'long', year: 'numeric' });
   const monthRows = buildCalendarRows(monthNow);
 
@@ -281,7 +291,7 @@ function WidgetStudio() {
     const identifier = isSteps ? Health.QuantityType.stepCount : Health.CategoryType.sleepAnalysis;
     const label = isSteps ? 'today’s steps' : 'sleep data';
     if (!Health.isAvailable()) {
-      Alert.alert('Health data unavailable', 'HealthKit or Health Connect is not available on this device.');
+      Alert.alert('Health data unavailable', Platform.OS === 'android' ? 'Install or enable Health Connect first. In Samsung Health, turn on Health Connect sharing for Steps and Sleep, then return here.' : 'HealthKit is not available on this device.');
       return false;
     }
     if (Health.getUnsupportedTypes([identifier]).length > 0) {
@@ -298,7 +308,7 @@ function WidgetStudio() {
         await Health.requestAuthorization({ toRead: [identifier] });
         setHealthRequested((current) => ({ ...current, [widget.id]: true }));
       } catch {
-        Alert.alert('Health access unavailable', 'The HealthKit / Health Connect permission screen could not be opened. Use a development build and make sure Health Connect is installed on Android.');
+        Alert.alert('Health access unavailable', 'The Health Connect permission screen could not be opened. Use a development build and, on Samsung, enable Samsung Health → Health Connect sharing first.');
         return false;
       }
     }
@@ -319,10 +329,21 @@ function WidgetStudio() {
       } catch { }
     } else if (widget.id === 'storage') {
       try {
-        const total = Paths.totalDiskSpace;
-        const available = Paths.availableDiskSpace;
-        const used = Math.max(0, total - available);
+        const storage = Platform.OS === 'android' && StudioAndroid
+          ? await StudioAndroid.getStorageInfo()
+          : { totalBytes: Paths.totalDiskSpace, availableBytes: Paths.availableDiskSpace, usedBytes: Math.max(0, Paths.totalDiskSpace - Paths.availableDiskSpace) };
+        const total = storage.totalBytes;
+        const available = storage.availableBytes;
+        const used = storage.usedBytes;
         return { label: `${formatBytes(used)} used`, subtitle: `${formatBytes(available)} free of ${formatBytes(total)}` };
+      } catch { }
+    } else if (widget.id === 'music') {
+      try {
+        const nowPlaying = Platform.OS === 'android' && StudioAndroid ? await StudioAndroid.getNowPlaying() : null;
+        if (nowPlaying?.title) {
+          const artist = [nowPlaying.artist, nowPlaying.album].filter(Boolean).join(' · ');
+          return { title: nowPlaying.title, subtitle: artist || 'Unknown artist', label: nowPlaying.isPlaying ? 'Playing' : 'Paused' };
+        }
       } catch { }
     } else if (widget.id.includes('steps') || (widget.id === 'custom' && widget.type === 'Health' && widget.style.startsWith('Step'))) {
       try {
@@ -395,18 +416,17 @@ function WidgetStudio() {
     }
     if (widget.id === 'calendar') void openCalendarPicker();
     if (widget.type === 'Health') void ensureHealthAccess(widget);
-    if (widget.id === 'music') {
-      Alert.alert(
-        'Allow music access?',
-        Platform.OS === 'android'
-          ? 'Showing the current track requires Notification access so Widget Studio can read active media sessions.'
-          : 'Reading Apple Music library details requires Media & Apple Music access.',
-        [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Continue', onPress: () => Alert.alert('Music connection unavailable', 'This project does not yet include the native media-session integration, so it cannot open the platform permission screen or display the current track.') },
-        ],
+    if (widget.id === 'music') void refreshSelectedData(widget).then((liveData) => {
+      if (Object.keys(liveData).length) {
+        setSelected((current) => current.id === widget.id ? { ...current, ...liveData } : current);
+        return;
+      }
+      if (Platform.OS === 'android' && StudioAndroid) Alert.alert(
+        'Connect now playing',
+        'Allow Notification access for Widget Studio. It can then read the title and artist from the music app currently showing a media notification.',
+        [{ text: 'Not now', style: 'cancel' }, { text: 'Open settings', onPress: () => { void StudioAndroid.openNotificationListenerSettings(); } }],
       );
-    }
+    });
   };
   const startFromScratch = () => {
     setSelected(scratchWidget);
@@ -557,7 +577,7 @@ function WidgetStudio() {
         )}
         {tab === 'Customize' && <View style={styles.previewShell}>
               <View style={styles.previewTop}><Text style={styles.previewEyebrow}>LIVE PREVIEW</Text><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
-              <View style={[styles.widgetPreview, previewDimensions, { borderColor: theme === 'Liquid Glass' ? 'rgba(255,255,255,0.48)' : colors.border, borderRadius: shapeRadius, backgroundColor: theme === 'Solid Color' ? colors.background : 'transparent' }]}>
+              <View style={[styles.widgetPreview, previewDimensions, { borderColor: theme === 'Transparent' ? 'transparent' : theme === 'Liquid Glass' ? 'rgba(255,255,255,0.48)' : colors.border, borderRadius: shapeRadius, backgroundColor: theme === 'Solid Color' ? colors.background : 'transparent' }]}>
                 {theme === 'Gradient' && <LinearGradient pointerEvents="none" colors={[colors.background, gradientEnd] as const} style={styles.previewBackground} />}
                 {theme === 'Liquid Glass' && <LinearGradient pointerEvents="none" colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.05)']} style={styles.previewBackground} />}
                 {selected.id === 'custom' && selected.type === 'Custom' ? <View style={styles.scratchEmpty}><Text style={styles.scratchStar}>✦</Text><Text style={styles.previewTitle}>Your canvas is ready</Text><Text style={styles.previewSubtitle}>Choose a widget type below to begin.</Text></View>
@@ -627,7 +647,7 @@ function WidgetStudio() {
               </View>
               <View style={styles.customCard}>
                 <Text style={styles.controlTitle}>Theme</Text><Text style={styles.controlSub}>Set the overall feel.</Text>
-                <View style={styles.optionGrid}>{(['Liquid Glass', 'Solid Color', 'Gradient'] as const).map((item) => <Pressable key={item} onPress={() => setTheme(item)} style={[styles.themeButton, theme === item && styles.optionButtonActive]}><View style={[styles.themeSample, item === 'Liquid Glass' && styles.glassSample, item === 'Solid Color' && { backgroundColor: colors.background }, item === 'Gradient' && styles.gradientSample]} /><Text style={[styles.optionText, theme === item && styles.optionTextActive]}>{item}</Text></Pressable>)}</View>
+                <View style={styles.optionGrid}>{(['Liquid Glass', 'Solid Color', 'Gradient', 'Transparent'] as const).map((item) => <Pressable key={item} onPress={() => setTheme(item)} style={[styles.themeButton, theme === item && styles.optionButtonActive]}><View style={[styles.themeSample, item === 'Liquid Glass' && styles.glassSample, item === 'Solid Color' && { backgroundColor: colors.background }, item === 'Gradient' && styles.gradientSample, item === 'Transparent' && styles.transparentSample]} /><Text style={[styles.optionText, theme === item && styles.optionTextActive]}>{item}</Text></Pressable>)}</View>
               </View>
               {theme !== 'Liquid Glass' && <View style={styles.customCard}>
                 <Text style={styles.controlTitle}>{Platform.OS === 'android' ? `Colors for ${selected.title}` : 'Colors'}</Text><Text style={styles.controlSub}>{Platform.OS === 'android' ? 'These colors apply to this widget design. Text layers stay separate.' : 'Enter any hex color. Each text layer is independent.'}</Text>
@@ -678,7 +698,7 @@ function WidgetStudio() {
           <View style={styles.widgetSheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>WIDGET PREVIEW</Text><Text style={styles.sheetTitle}>{previewTitle}</Text></View><Pressable onPress={() => setWidgetSheetVisible(false)} style={styles.sheetClose}><Text style={styles.sheetCloseText}>×</Text></Pressable></View>
-            <View style={[styles.sheetWidgetPreview, { borderColor: theme === 'Liquid Glass' ? 'rgba(255,255,255,0.48)' : colors.border, borderRadius: shapeRadius, backgroundColor: theme === 'Liquid Glass' ? 'rgba(255,255,255,0.12)' : colors.background }]}>
+            <View style={[styles.sheetWidgetPreview, { borderColor: theme === 'Transparent' ? 'transparent' : theme === 'Liquid Glass' ? 'rgba(255,255,255,0.48)' : colors.border, borderRadius: shapeRadius, backgroundColor: theme === 'Transparent' ? 'transparent' : theme === 'Liquid Glass' ? 'rgba(255,255,255,0.12)' : colors.background }]}>
               <WidgetSample widget={selected} large accent={theme === 'Liquid Glass' ? '#FFFFFF' : colors.value} clockMode={clockMode} analogClockStyle={analogClockStyle} digitalClockStyle={digitalClockStyle} clockHandColors={activeClockHandColors} timeFormat={timeFormat} showSeconds={showSeconds} showPeriod={showPeriod} clockZone={clockZone} secondClockZone={secondClockZone} showSecondClock={showSecondClock} now={clockNow} stepGoal={stepGoal} stepStyle={stepStyle} />
             </View>
             <View style={styles.sheetActions}>
@@ -703,7 +723,7 @@ function WidgetStudio() {
             <Text style={styles.sectionTitle}>Choose one event</Text>
             <Text style={styles.sectionSub}>Upcoming events from your calendars.</Text>
             <ScrollView style={styles.eventList}>
-              {calendarEvents.length === 0 ? <Text style={styles.helperText}>No upcoming events were found in the next 30 days.</Text> : calendarEvents.map((event) => <Pressable key={event.id} onPress={() => { setCalendarEvent(event); setEventPickerVisible(false); }} style={styles.eventOption}>
+              {calendarEvents.length === 0 ? <Text style={styles.helperText}>No upcoming events were found in the next 30 days.</Text> : calendarEvents.map((event) => <Pressable key={event.id} onPress={() => { setCalendarEvent(event); setSelected((current) => current.type === 'Calendar' ? { ...current, title: event.title || 'Untitled event', subtitle: formatEventDate(event.startDate), label: formatEventDate(event.startDate) } : current); setEventPickerVisible(false); }} style={styles.eventOption}>
                 <View style={styles.eventOptionCopy}><Text style={styles.controlTitle}>{event.title || 'Untitled event'}</Text><Text style={styles.controlSub}>{formatEventDate(event.startDate)}</Text></View>
                 {calendarEvent?.id === event.id && <Text style={styles.calendarCheck}>✓</Text>}
               </Pressable>)}
@@ -900,6 +920,16 @@ function WidgetSample({ widget, large = false, accent, clockMode = 'Analog', ana
       <View style={styles.stepsTrack}><View style={[styles.stepsFill, { width: `${Math.min(100, 8420 / stepGoal * 100)}%`, backgroundColor: tint }]} /></View><Text style={styles.digitalDate}>{Math.round(Math.min(100, 8420 / stepGoal * 100))}% of daily goal</Text>
     </>}
   </View>;
+  if (widget.type === 'Calendar') {
+    const month = new Date();
+    return <View style={[styles.sampleContent, styles.calendarFace]}>
+      <Text style={[styles.calendarMonth, { color: tint }]}>{month.toLocaleDateString([], { month: 'long', year: 'numeric' })}</Text>
+      <Text style={[styles.calendarWeekdays, { fontFamily: 'monospace' }]}>Su Mo Tu We Th Fr Sa</Text>
+      {buildCalendarRows(month).map((row, index) => <Text key={index} style={[styles.calendarDays, { fontFamily: 'monospace' }]}>{row}</Text>)}
+      <Text numberOfLines={1} style={[styles.calendarEvent, { color: tint }]}>{widget.title}</Text>
+      <Text numberOfLines={1} style={styles.digitalDate}>{widget.subtitle}</Text>
+    </View>;
+  }
   return <View style={styles.sampleContent}>
     <Text style={[styles.sampleIcon, large && { fontSize: 34 }, { color: tint }]}>{widget.icon}</Text>
     <Text style={[styles.sampleValue, large && { fontSize: 28 }, { color: tint }]}>{widget.type === 'Clock' ? primaryTime : widget.label}</Text>
@@ -920,7 +950,7 @@ const styles = StyleSheet.create({
   previewShell: { backgroundColor: '#191A17', borderRadius: 23, padding: 14, borderWidth: 1, borderColor: '#282923' }, previewTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingHorizontal: 3 }, previewEyebrow: { color: '#AAA99D', fontSize: 9, letterSpacing: 1.7, fontWeight: '700', flex: 1 }, liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#D7F36A', marginRight: 5 }, liveText: { color: '#D7F36A', fontSize: 8, letterSpacing: 1.3, fontWeight: '800' }, widgetPreview: { overflow: 'hidden', position: 'relative', borderWidth: 1, padding: 0, justifyContent: 'flex-start' }, previewBackground: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }, previewIconPosition: { position: 'absolute' }, previewTextPosition: { position: 'absolute', width: '78%' }, miniIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, previewType: { color: '#919287', fontSize: 8, letterSpacing: 1.4, marginLeft: 9, flex: 1, fontWeight: '700' }, more: { color: '#8B8D81', letterSpacing: 2, fontSize: 12 }, previewValue: { fontSize: 36, fontWeight: '600', letterSpacing: -1.3, marginTop: 7 }, previewBottom: {}, previewTitle: { color: '#F1EFE7', fontSize: 13, fontWeight: '700' }, previewSubtitle: { color: '#929389', fontSize: 10, marginTop: 3 }, calendarFace: { paddingHorizontal: 17, paddingVertical: 9 }, calendarMonth: { fontSize: 16, fontWeight: '800', marginBottom: 5 }, calendarWeekdays: { fontSize: 8, letterSpacing: 0.1, fontWeight: '700' }, calendarDays: { fontSize: 9, lineHeight: 12, fontVariant: ['tabular-nums'] }, calendarEvent: { fontSize: 8, marginTop: 2 }, previewFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12 }, previewHint: { color: '#85867C', fontSize: 9, flex: 1 }, saveButton: { backgroundColor: '#D7F36A', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginLeft: 8 }, saveButtonDone: { backgroundColor: '#D7F36A' }, saveButtonText: { color: '#171812', fontWeight: '800', fontSize: 10 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 27, marginBottom: 13 }, sectionTitle: { color: '#F1EFE7', fontSize: 17, fontWeight: '700', letterSpacing: -0.35 }, sectionSub: { color: '#8F9086', fontSize: 11, marginTop: 4 }, count: { color: '#7E8075', fontSize: 8, letterSpacing: 1.4, fontWeight: '700', marginBottom: 2 }, chips: { paddingTop: 12, paddingBottom: 13, gap: 7 }, chip: { borderRadius: 20, paddingHorizontal: 13, paddingVertical: 8, borderWidth: 1, borderColor: '#303129', backgroundColor: '#191A17' }, chipActive: { backgroundColor: '#D7F36A', borderColor: '#D7F36A' }, chipText: { color: '#B0B1A5', fontSize: 10, fontWeight: '600' }, chipTextActive: { color: '#191A14', fontWeight: '800' }, grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 11 }, templateCard: { borderRadius: 17, backgroundColor: '#191A17', padding: 8, borderWidth: 1, borderColor: '#292A24' }, templateSelected: { borderColor: '#D7F36A', backgroundColor: '#1E2018' }, templateArt: { height: 105, borderRadius: 11, overflow: 'hidden', padding: 10, justifyContent: 'space-between' }, artOrb: { position: 'absolute', width: 100, height: 100, borderRadius: 50, opacity: 0.1, top: -30, right: -20 }, artSymbol: { fontSize: 21, position: 'absolute', top: 9, right: 11 }, artLabel: { fontWeight: '700', fontSize: 22, letterSpacing: -0.7, marginTop: 21 }, artTime: { color: '#AAA99D', fontSize: 8, letterSpacing: 1.1 }, artLine: { position: 'absolute', height: 2, width: 25, backgroundColor: '#F1EFE7', opacity: 0.35, bottom: 15, right: 12, borderRadius: 2 }, templateInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3, paddingTop: 9, paddingBottom: 2 }, templateTitle: { color: '#EDEBE3', fontSize: 11, fontWeight: '700' }, templateType: { color: '#8B8C81', fontSize: 9, marginTop: 3 }, selectDot: { width: 17, height: 17, borderRadius: 9, borderWidth: 1, borderColor: '#55564C', alignItems: 'center', justifyContent: 'center' }, check: { fontSize: 10, color: '#171812', fontWeight: '900' }, editIcon: { color: '#D7F36A', fontSize: 20, marginBottom: -1 },
   customCard: { backgroundColor: '#191A17', borderRadius: 17, borderWidth: 1, borderColor: '#292A24', paddingHorizontal: 15, paddingVertical: 16, marginTop: 16 }, customRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, controlTitle: { color: '#EDEBE3', fontSize: 12, fontWeight: '700' }, controlSub: { color: '#8C8D82', fontSize: 9, marginTop: 4 }, palette: { flexDirection: 'row', gap: 7 }, swatch: { width: 23, height: 23, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, swatchSelected: { borderColor: '#F5F3E9', borderWidth: 2 }, swatchCheck: { color: '#171812', fontSize: 10, fontWeight: '900' }, divider: { height: 1, backgroundColor: '#2B2C25', marginVertical: 2 }, sizeGroup: { flexDirection: 'row', gap: 5, padding: 4, borderRadius: 10, backgroundColor: '#24251F' }, sizeOption: { width: 27, height: 27, borderRadius: 7, alignItems: 'center', justifyContent: 'center' }, sizeOptionActive: { backgroundColor: '#D7F36A' }, sizeText: { color: '#999A8F', fontSize: 11, fontWeight: '700' }, sizeTextActive: { color: '#171812' }, note: { flexDirection: 'row', marginTop: 17, marginBottom: 10, alignItems: 'center', paddingHorizontal: 4 }, noteIcon: { color: '#D7F36A', fontSize: 14, marginRight: 8 }, noteText: { color: '#84857A', fontSize: 10, lineHeight: 15, flex: 1 },
-  modeSwitch: { flexDirection: 'row', backgroundColor: '#24251F', borderRadius: 12, padding: 4, marginTop: 14, marginBottom: 5 }, modeButton: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 9 }, modeButtonActive: { backgroundColor: '#D7F36A' }, modeText: { color: '#9A9B90', fontSize: 11, fontWeight: '700' }, modeTextActive: { color: '#171812' }, helperText: { color: '#96978B', fontSize: 10, lineHeight: 15, marginTop: 12 }, fullPageButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#414238', marginTop: 9 }, fullPageText: { color: '#D7F36A', fontSize: 10, fontWeight: '700' }, optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }, optionButton: { flexGrow: 1, minWidth: '21%', minHeight: 64, borderRadius: 12, borderWidth: 1, borderColor: '#34352D', backgroundColor: '#20211D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }, themeButton: { flexGrow: 1, minWidth: '29%', minHeight: 76, borderRadius: 12, borderWidth: 1, borderColor: '#34352D', backgroundColor: '#20211D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, gap: 6 }, optionButtonActive: { borderColor: '#D7F36A', backgroundColor: '#25291D' }, optionText: { color: '#A4A59A', fontSize: 9, fontWeight: '600' }, optionTextActive: { color: '#F0F0E8' }, shapeSample: { width: 27, height: 27, borderRadius: 5, borderWidth: 1, borderColor: '#85867B', marginBottom: 5 }, themeSample: { width: 36, height: 23, borderRadius: 7, backgroundColor: '#33352D', borderWidth: 1, borderColor: '#55564D' }, glassSample: { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.55)' }, gradientSample: { backgroundColor: '#66778D', borderColor: '#66778D' }, colorGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginTop: 16 }, colorControl: { width: '48%', marginBottom: 2 }, colorLabel: { color: '#B9BAAF', fontSize: 9, fontWeight: '600', marginBottom: 6 }, colorInputRow: { height: 38, flexDirection: 'row', alignItems: 'center', backgroundColor: '#23241F', borderRadius: 9, borderWidth: 1, borderColor: '#37382F', paddingHorizontal: 7 }, colorSwatch: { width: 17, height: 17, borderRadius: 5, marginRight: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)' }, colorInput: { flex: 1, color: '#E8E7DE', fontSize: 10, paddingVertical: 0 }, glassNotice: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#20211D', borderRadius: 14, padding: 14, marginTop: 16, borderWidth: 1, borderColor: '#3B3D34' }, glassNoticeIcon: { color: '#E7F2FF', fontSize: 18, marginRight: 10 }, glassNoticeText: { flex: 1, color: '#AEB6BF', fontSize: 10, lineHeight: 15 }, stepperRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, stepperLabel: { color: '#D9D8CE', fontSize: 11, fontWeight: '600' }, stepperControls: { minWidth: 126, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#24251F', borderRadius: 10, padding: 4 }, stepperButton: { width: 31, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#303129' }, stepperButtonText: { color: '#D7F36A', fontSize: 15, fontWeight: '700' }, stepperValue: { color: '#F0EFE7', minWidth: 48, textAlign: 'center', fontSize: 10, fontWeight: '700' },
+  modeSwitch: { flexDirection: 'row', backgroundColor: '#24251F', borderRadius: 12, padding: 4, marginTop: 14, marginBottom: 5 }, modeButton: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 9 }, modeButtonActive: { backgroundColor: '#D7F36A' }, modeText: { color: '#9A9B90', fontSize: 11, fontWeight: '700' }, modeTextActive: { color: '#171812' }, helperText: { color: '#96978B', fontSize: 10, lineHeight: 15, marginTop: 12 }, fullPageButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#414238', marginTop: 9 }, fullPageText: { color: '#D7F36A', fontSize: 10, fontWeight: '700' }, optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }, optionButton: { flexGrow: 1, minWidth: '21%', minHeight: 64, borderRadius: 12, borderWidth: 1, borderColor: '#34352D', backgroundColor: '#20211D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }, themeButton: { flexGrow: 1, minWidth: '29%', minHeight: 76, borderRadius: 12, borderWidth: 1, borderColor: '#34352D', backgroundColor: '#20211D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, gap: 6 }, optionButtonActive: { borderColor: '#D7F36A', backgroundColor: '#25291D' }, optionText: { color: '#A4A59A', fontSize: 9, fontWeight: '600' }, optionTextActive: { color: '#F0F0E8' }, shapeSample: { width: 27, height: 27, borderRadius: 5, borderWidth: 1, borderColor: '#85867B', marginBottom: 5 }, themeSample: { width: 36, height: 23, borderRadius: 7, backgroundColor: '#33352D', borderWidth: 1, borderColor: '#55564D' }, glassSample: { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.55)' }, gradientSample: { backgroundColor: '#66778D', borderColor: '#66778D' }, transparentSample: { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: '#B5B6A9' }, colorGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginTop: 16 }, colorControl: { width: '48%', marginBottom: 2 }, colorLabel: { color: '#B9BAAF', fontSize: 9, fontWeight: '600', marginBottom: 6 }, colorInputRow: { height: 38, flexDirection: 'row', alignItems: 'center', backgroundColor: '#23241F', borderRadius: 9, borderWidth: 1, borderColor: '#37382F', paddingHorizontal: 7 }, colorSwatch: { width: 17, height: 17, borderRadius: 5, marginRight: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)' }, colorInput: { flex: 1, color: '#E8E7DE', fontSize: 10, paddingVertical: 0 }, glassNotice: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#20211D', borderRadius: 14, padding: 14, marginTop: 16, borderWidth: 1, borderColor: '#3B3D34' }, glassNoticeIcon: { color: '#E7F2FF', fontSize: 18, marginRight: 10 }, glassNoticeText: { flex: 1, color: '#AEB6BF', fontSize: 10, lineHeight: 15 }, stepperRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, stepperLabel: { color: '#D9D8CE', fontSize: 11, fontWeight: '600' }, stepperControls: { minWidth: 126, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#24251F', borderRadius: 10, padding: 4 }, stepperButton: { width: 31, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#303129' }, stepperButtonText: { color: '#D7F36A', fontSize: 15, fontWeight: '700' }, stepperValue: { color: '#F0EFE7', minWidth: 48, textAlign: 'center', fontSize: 10, fontWeight: '700' },
   emptyState: { minHeight: 145, borderRadius: 17, backgroundColor: '#191A17', borderWidth: 1, borderColor: '#292A24', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }, emptyIcon: { color: '#D7F36A', fontSize: 25 }, emptyTitle: { color: '#EDEBE3', fontSize: 13, fontWeight: '700', marginTop: 9 }, emptySub: { color: '#8C8D82', fontSize: 10, marginTop: 5 },
   addHomeButton: { minHeight: 66, borderRadius: 15, backgroundColor: '#D7F36A', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginTop: 12 }, addHomeIcon: { fontSize: 23, color: '#171812', fontWeight: '600', marginRight: 12 }, addHomeTitle: { color: '#171812', fontSize: 12, fontWeight: '800' }, addHomeSub: { color: '#454A31', fontSize: 9, marginTop: 3 }, addHomeArrow: { color: '#171812', fontSize: 18, fontWeight: '700' },
   settingsCard: { backgroundColor: '#191A17', borderRadius: 20, borderWidth: 1, borderColor: '#292A24', paddingHorizontal: 16, marginTop: 4 }, settingsIntro: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18 }, settingsIntroIcon: { color: '#D7F36A', fontSize: 24, marginRight: 13 }, settingsRow: { minHeight: 65, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, settingsValue: { color: '#D7F36A', fontSize: 15, fontWeight: '700', marginRight: 4 }, settingsChevron: { color: '#85867D', fontSize: 23, marginRight: 4 },

@@ -1,0 +1,279 @@
+{
+  "expo": {
+    "name": "Widget Studio",
+    "slug": "widget-studio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.widgetstudio.customwidgets",
+      "adaptiveIcon": {
+        "backgroundColor": "#10110F"
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.widgetstudio.customwidgets"
+    },
+    "plugins": [
+      "./plugins/withWidgetStudioAndroid",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Widget Studio needs read access so you can choose one event for your calendar widget.",
+          "remindersPermission": false
+        }
+      ],
+      [
+        "@appeeky/expo-healthkit",
+        {
+          "healthSharePermission": "Widget Studio reads only the health data for the Health widget you choose.",
+          "healthUpdatePermission": false,
+          "healthConnectPermissions": [
+            "READ_STEPS",
+            "READ_SLEEP"
+          ]
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "enableAndroid": true,
+          "widgets": [
+            {
+              "name": "StudioWidget",
+              "displayName": "Widget Studio",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget2",
+              "displayName": "Widget Studio 2",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget3",
+              "displayName": "Widget Studio 3",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget4",
+              "displayName": "Widget Studio 4",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget5",
+              "displayName": "Widget Studio 5",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget6",
+              "displayName": "Widget Studio 6",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget7",
+              "displayName": "Widget Studio 7",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget8",
+              "displayName": "Widget Studio 8",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget9",
+              "displayName": "Widget Studio 9",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget10",
+              "displayName": "Widget Studio 10",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget11",
+              "displayName": "Widget Studio 11",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            },
+            {
+              "name": "StudioWidget12",
+              "displayName": "Widget Studio 12",
+              "description": "Your custom widget, made in Widget Studio.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "widgets/StudioWidget.ios.tsx"
+              },
+              "android": {
+                "targetCellWidth": 3,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "widgets/StudioWidget.android.tsx"
+              }
+            }
+          ]
+        }
+      ]
+    ]
+  }
+}

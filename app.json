@@ -28,17 +28,6 @@
         }
       ],
       [
-        "@appeeky/expo-healthkit",
-        {
-          "healthSharePermission": "Widget Studio reads only the health data for the Health widget you choose.",
-          "healthUpdatePermission": false,
-          "healthConnectPermissions": [
-            "READ_STEPS",
-            "READ_SLEEP"
-          ]
-        }
-      ],
-      [
         "expo-widgets",
         {
           "enableAndroid": true,

@@ -48,16 +48,14 @@ const makeClockWidgets = (face: string, index: number, analog: boolean): Widget 
 const widgets: Widget[] = [
   ...analogFaces.map((face, index) => makeClockWidgets(face, index, true)),
   ...digitalFaces.map((face, index) => makeClockWidgets(face, index, false)),
-  { id: 'health-sleep', title: 'Sleep Summary', subtitle: 'Last night’s sleep from Health', type: 'Health', icon: '☾', accent: '#B8A5FF', label: '7h 42m', style: 'Sleep summary' },
-  ...['Step ring', 'Daily goal', 'Weekly bars', 'Simple count'].map((style, index) => ({ id: `health-steps-${index + 1}`, title: `Steps · ${style}`, subtitle: 'A sample of today’s activity', type: 'Health', icon: '⌁', accent: '#88D5C3', label: ['8,420', '8,420 / 10k', 'Mon  Tue  Wed', '8,420 steps'][index], style })),
   { id: 'weather', title: 'Daylight', subtitle: 'A little forecast, a lot of sky', type: 'Weather', icon: '☀', accent: '#D8B8FF', label: '24°', style: 'Current weather' },
   { id: 'battery', title: 'Power Check', subtitle: 'Your current battery level', type: 'Battery', icon: '▰', accent: '#D7F36A', label: '82%', style: 'Battery level' },
   { id: 'calendar', title: 'One Thing Today', subtitle: 'Choose one event from your calendar', type: 'Calendar', icon: '▦', accent: '#88D5C3', label: '10:30 · Design review', style: 'Selected event' },
   { id: 'music', title: 'Now Playing', subtitle: 'A compact music widget', type: 'Music', icon: '♫', accent: '#FFAE91', label: 'Midnight City', style: 'Now playing' },
   { id: 'storage', title: 'Space Check', subtitle: 'Used, available, and total storage', type: 'Storage', icon: '◫', accent: '#85C8E8', label: '76% used', style: 'Storage overview' },
 ];
-const categories = ['All widgets', 'Clock Analog', 'Clock Digital', 'Health', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage'];
-const widgetTypes = ['Clock', 'Health', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage', 'Text'];
+const categories = ['All widgets', 'Clock Analog', 'Clock Digital', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage'];
+const widgetTypes = ['Clock', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage', 'Text'];
 const scratchWidget: Widget = { id: 'custom', title: 'Your widget', subtitle: 'Start with a blank canvas', type: 'Custom', icon: '✦', accent: '#D7F36A', label: 'Make it yours', style: 'Blank' };
 const tabs = [
   { name: 'Widgets', icon: '▦' },

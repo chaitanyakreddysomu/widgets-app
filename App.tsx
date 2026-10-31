@@ -6,7 +6,8 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Calendar from 'expo-calendar';
 import * as Battery from 'expo-battery';
-import { Paths } from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
+import { NativeModules } from 'react-native';
 
 type Widget = { id: string; title: string; subtitle: string; type: string; icon: string; accent: string; label: string };
 const widgets: Widget[] = [
@@ -41,6 +42,8 @@ type NativeWidget = {
     colors: WidgetColors; positions: { iconX: number; iconY: number; textX: number; textY: number }; gradientEnd: string;
   }) => void;
 };
+type StudioNative = { pinWidget: (name: string) => Promise<boolean>; installApk: (path: string) => Promise<void>; getBuildVersion: () => Promise<string>; };
+const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes < 0) return 'Unknown';
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
@@ -103,6 +106,10 @@ function WidgetStudio() {
   const [calendarEvent, setCalendarEvent] = useState<Calendar.ExpoCalendarEvent | null>(null);
   const [calendarGranted, setCalendarGranted] = useState(false);
   const [healthRequested, setHealthRequested] = useState<Record<string, boolean>>({});
+  const [updatesVisible, setUpdatesVisible] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'current' | 'error' | 'downloading'>('idle');
+  const [updateUrl, setUpdateUrl] = useState('');
+  const [updateVersion, setUpdateVersion] = useState('');
   const activePosition = useRef(new Animated.Value(0)).current;
   const pageOpacity = useRef(new Animated.Value(1)).current;
   const pageOffset = useRef(new Animated.Value(0)).current;
@@ -346,13 +353,50 @@ function WidgetStudio() {
       return;
     }
     setSaved(true);
-    Alert.alert(
-      'Your widget is ready',
-      Platform.OS === 'android'
-        ? 'To place it, touch and hold an empty spot on your home screen, choose Widgets, then add Widget Studio. Your design and settings are synced.'
-        : 'To place it, touch and hold your home screen, tap +, choose Widget Studio, then select a size. Your design and settings are synced.',
-      [{ text: 'Got it' }],
-    );
+    if (Platform.OS === 'android') {
+      try {
+        if (!StudioAndroid) throw new Error('Native widget pinning is unavailable in this app build.');
+        await StudioAndroid.pinWidget('StudioWidget');
+      } catch (error) {
+        Alert.alert('Could not add widget', error instanceof Error ? error.message : 'Try adding Widget Studio from your launcher’s Widgets panel.');
+      }
+    } else {
+      Alert.alert('Widget saved', 'Your design is saved. Add Widget Studio from your home screen’s widget gallery.');
+    }
+  };
+
+  const checkForUpdates = async () => {
+    setUpdateStatus('checking');
+    try {
+      const response = await fetch('https://api.github.com/repos/chaitanyakreddysomu/widgets-app/releases/latest', { headers: { Accept: 'application/vnd.github+json' } });
+      if (!response.ok) throw new Error('Could not reach the update service.');
+      const release = await response.json() as { tag_name?: string; assets?: { name: string; browser_download_url: string }[] };
+      const apk = release.assets?.find((asset) => asset.name.toLowerCase().endsWith('.apk'));
+      if (!apk) throw new Error('No APK is attached to the latest release yet.');
+      const latest = Number(release.tag_name?.replace(/^build-/, ''));
+      const installed = Number(Platform.OS === 'android' && StudioAndroid ? await StudioAndroid.getBuildVersion() : '0');
+      if (Number.isFinite(latest) && latest <= installed) { setUpdateStatus('current'); return; }
+      setUpdateVersion(release.tag_name ?? 'Latest release');
+      setUpdateUrl(apk.browser_download_url);
+      setUpdateStatus('available');
+    } catch (error) {
+      setUpdateStatus('error');
+      Alert.alert('Update check failed', error instanceof Error ? error.message : 'Please try again later.');
+    }
+  };
+  const downloadAndInstallUpdate = async () => {
+    if (!updateUrl || !StudioAndroid) {
+      Alert.alert('Update unavailable', 'In-app installation is available in the Android release build.');
+      return;
+    }
+    setUpdateStatus('downloading');
+    try {
+      const file = await File.downloadFileAsync(updateUrl, new File(Paths.cache, 'widget-studio-update.apk'));
+      await StudioAndroid.installApk(file.uri);
+    } catch (error) {
+      setUpdateStatus('available');
+      Alert.alert('Download failed', error instanceof Error ? error.message : 'Please try again.');
+    }
   };
 
   return (
@@ -371,6 +415,8 @@ function WidgetStudio() {
         {tab === 'Settings' ? (
           <View style={styles.settingsCard}>
             <View style={styles.settingsIntro}><Text style={styles.settingsIntroIcon}>⚙︎</Text><View><Text style={styles.sectionTitle}>Studio settings</Text><Text style={styles.sectionSub}>A few details about your setup.</Text></View></View>
+            <View style={styles.divider} />
+            <Pressable onPress={() => { setUpdatesVisible(true); void checkForUpdates(); }} style={styles.settingsRow}><View><Text style={styles.controlTitle}>Update app</Text><Text style={styles.controlSub}>Check for the latest Widget Studio release</Text></View><Text style={styles.settingsChevron}>›</Text></Pressable>
             <View style={styles.divider} />
             <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Appearance</Text><Text style={styles.controlSub}>Dark · soft contrast</Text></View><Text style={styles.settingsValue}>●</Text></View>
             <View style={styles.divider} />
@@ -497,6 +543,13 @@ function WidgetStudio() {
             </View>
           </View>
         </View>
+      </Modal>
+      <Modal visible={updatesVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setUpdatesVisible(false)}>
+        <View style={styles.sheetOverlay}><Pressable style={styles.sheetScrim} onPress={() => setUpdatesVisible(false)} /><View style={styles.widgetSheet}>
+          <View style={styles.sheetHandle} /><Text style={styles.sheetEyebrow}>WIDGET STUDIO</Text><Text style={styles.sheetTitle}>App updates</Text>
+          <Text style={styles.controlSub}>{updateStatus === 'checking' ? 'Checking for updates…' : updateStatus === 'available' ? `Version ${updateVersion} is ready to download.` : updateStatus === 'current' ? 'You’re up to date.' : updateStatus === 'downloading' ? 'Downloading update… Android will ask you to install it when ready.' : updateStatus === 'error' ? 'Could not check for updates. Try again.' : 'Check GitHub Releases for the newest version.'}</Text>
+          <View style={styles.sheetActions}>{updateStatus === 'available' ? <Pressable onPress={downloadAndInstallUpdate} style={styles.addScreenButton}><Text style={styles.addScreenButtonText}>Download & install</Text></Pressable> : <Pressable disabled={updateStatus === 'checking' || updateStatus === 'downloading'} onPress={() => void checkForUpdates()} style={styles.addScreenButton}><Text style={styles.addScreenButtonText}>{updateStatus === 'checking' || updateStatus === 'downloading' ? 'Please wait…' : updateStatus === 'current' ? 'Check again' : 'Check for updates'}</Text></Pressable>}</View>
+        </View></View>
       </Modal>
       <Modal visible={eventPickerVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setEventPickerVisible(false)}>
         <View style={styles.sheetOverlay}>

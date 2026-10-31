@@ -15,6 +15,7 @@
       "bundleIdentifier": "com.widgetstudio.customwidgets"
     },
     "plugins": [
+      "./plugins/withWidgetStudioAndroid",
       [
         "expo-calendar",
         {

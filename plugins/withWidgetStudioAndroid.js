@@ -67,8 +67,7 @@ module.exports = function withWidgetStudioAndroid(config) {
       val listener = ComponentName(reactApplicationContext, WidgetStudioNotificationListener::class.java)
       val sessions = manager.getActiveSessions(listener)
       val controller = sessions.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING } ?: sessions.firstOrNull()
-      if (controller?.metadata == null) { promise.resolve(null); return }
-      val metadata = controller.metadata
+      val metadata = controller?.metadata ?: run { promise.resolve(null); return }
       val result = Arguments.createMap().apply {
         putString("title", metadata.getString(android.media.MediaMetadata.METADATA_KEY_TITLE))
         putString("artist", metadata.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST))

@@ -561,11 +561,14 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
     }.start()
   }
 
-  @ReactMethod fun setDepthWallpaperLayers(foregroundPath: String, backgroundPath: String, promise: Promise) {
+  @ReactMethod fun setDepthWallpaperConfig(foregroundPath: String, backgroundPath: String, clockEnabled: Boolean, clockFont: String, clockBehindSubject: Boolean, promise: Promise) {
     try {
       reactApplicationContext.getSharedPreferences("depth_wallpaper", 0).edit()
         .putString("foreground", foregroundPath)
         .putString("background", backgroundPath)
+        .putBoolean("clockEnabled", clockEnabled)
+        .putString("clockFont", clockFont)
+        .putBoolean("clockBehindSubject", clockBehindSubject)
         .apply()
       promise.resolve(true)
     } catch (error: Exception) { promise.reject("DEPTH_SAVE_FAILED", error.message, error) }
@@ -591,6 +594,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -599,6 +603,8 @@ import android.os.Handler
 import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 // Real parallax "depth" wallpaper: a foreground subject (cut out on-device via
 // ML Kit subject segmentation) floats over a blurred background. Shifts come
@@ -610,19 +616,39 @@ class DepthWallpaperService : WallpaperService() {
   inner class DepthEngine : Engine(), SensorEventListener {
     private val handler = Handler(Looper.getMainLooper())
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+    private val clockPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textAlign = Paint.Align.CENTER }
+    private val timeFormatter = DateTimeFormatter.ofPattern("h:mm")
     private val prefs by lazy { getSharedPreferences("depth_wallpaper", MODE_PRIVATE) }
     private val sensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
     private var foreground: Bitmap? = null
     private var background: Bitmap? = null
+    private var clockEnabled = false
+    private var clockBehindSubject = false
     private var pageOffset = 0f
     private var tiltX = 0f
     private var tiltY = 0f
     private var running = false
     private val drawRunner = Runnable { draw() }
 
+    private fun typefaceFor(name: String): Typeface = when (name) {
+      "Serif" -> Typeface.create(Typeface.SERIF, Typeface.BOLD)
+      "Monospace" -> Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+      "Condensed" -> Typeface.create("sans-serif-condensed", Typeface.BOLD)
+      "Light" -> Typeface.create("sans-serif-light", Typeface.NORMAL)
+      else -> Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+    }
+
     private fun loadLayers() {
       foreground = prefs.getString("foreground", null)?.let { BitmapFactory.decodeFile(it) }
       background = prefs.getString("background", null)?.let { BitmapFactory.decodeFile(it) }
+      clockEnabled = prefs.getBoolean("clockEnabled", false)
+      clockBehindSubject = prefs.getBoolean("clockBehindSubject", false)
+      clockPaint.typeface = typefaceFor(prefs.getString("clockFont", "Sans") ?: "Sans")
+    }
+
+    private fun drawClock(canvas: Canvas) {
+      clockPaint.textSize = canvas.height * 0.09f
+      canvas.drawText(LocalTime.now().format(timeFormatter), canvas.width / 2f, canvas.height * 0.22f, clockPaint)
     }
 
     private fun drawLayer(canvas: Canvas, bitmap: Bitmap, shiftX: Float, shiftY: Float) {
@@ -649,7 +675,9 @@ class DepthWallpaperService : WallpaperService() {
           val tiltShiftX = tiltX * width * 0.02f
           val tiltShiftY = tiltY * height * 0.012f
           background?.let { drawLayer(canvas, it, pagingShiftX * 0.4f, 0f) }
+          if (clockEnabled && clockBehindSubject) drawClock(canvas)
           foreground?.let { drawLayer(canvas, it, pagingShiftX + tiltShiftX, tiltShiftY) }
+          if (clockEnabled && !clockBehindSubject) drawClock(canvas)
         }
       } finally {
         if (canvas != null) holder.unlockCanvasAndPost(canvas)

@@ -197,9 +197,27 @@ const depthClockFontFamilies: Record<DepthClockFont, string | undefined> = {
 type DepthOverlayPos = { x: number; y: number };
 const defaultDepthClockPos: DepthOverlayPos = { x: 0.5, y: 0.22 };
 const defaultDepthDatePos: DepthOverlayPos = { x: 0.5, y: 0.34 };
+const depthDateFormats = ['dd/mm/yy', 'dd/mm/yyyy', 'dd-MMM-yyyy', 'dd MMMM', 'dd MMMM yyyy', 'mm/dd/yyyy'] as const;
+type DepthDateFormat = (typeof depthDateFormats)[number];
+const formatDepthDate = (date: Date, format: DepthDateFormat): string => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const yearFull = String(date.getFullYear());
+  const yearShort = yearFull.slice(-2);
+  const monthShort = date.toLocaleDateString([], { month: 'short' });
+  const monthLong = date.toLocaleDateString([], { month: 'long' });
+  switch (format) {
+    case 'dd/mm/yy': return `${day}/${month}/${yearShort}`;
+    case 'dd-MMM-yyyy': return `${day} - ${monthShort}- ${yearFull}`;
+    case 'dd MMMM': return `${day} ${monthLong}`;
+    case 'dd MMMM yyyy': return `${day} ${monthLong} ${yearFull}`;
+    case 'mm/dd/yyyy': return `${month}/${day}/${yearFull}`;
+    default: return `${day}/${month}/${yearFull}`;
+  }
+};
 type DepthWallpaperConfig = {
   clockEnabled: boolean; clockFont: string; clockBehindSubject: boolean; clockSize: number;
-  clockX: number; clockY: number; showDate: boolean; dateX: number; dateY: number;
+  clockX: number; clockY: number; showDate: boolean; dateFont: string; dateFormat: string; dateX: number; dateY: number;
 };
 const wallpaperGradientPresets = [
   { id: 'dusk', name: 'Dusk Violet', colors: ['#2B2250', '#8C6CFF'] },
@@ -308,6 +326,8 @@ function WidgetStudio() {
   const [depthClockBehindSubject, setDepthClockBehindSubject] = useState(false);
   const [depthClockSize, setDepthClockSize] = useState(100);
   const [depthShowDate, setDepthShowDate] = useState(false);
+  const [depthDateFont, setDepthDateFont] = useState<DepthClockFont>('Sans');
+  const [depthDateFormat, setDepthDateFormat] = useState<DepthDateFormat>('dd/mm/yyyy');
   const [depthClockPos, setDepthClockPos] = useState<DepthOverlayPos>(defaultDepthClockPos);
   const [depthDatePos, setDepthDatePos] = useState<DepthOverlayPos>(defaultDepthDatePos);
   const [depthPreviewSize, setDepthPreviewSize] = useState({ width: 0, height: 0 });
@@ -583,7 +603,8 @@ function WidgetStudio() {
     try {
       await StudioAndroid.setDepthWallpaperConfig(depthLayers.foregroundPath, depthLayers.backgroundPath, {
         clockEnabled: depthClockEnabled, clockFont: depthClockFont, clockBehindSubject: depthClockBehindSubject, clockSize: depthClockSize / 100,
-        clockX: depthClockPos.x, clockY: depthClockPos.y, showDate: depthShowDate, dateX: depthDatePos.x, dateY: depthDatePos.y,
+        clockX: depthClockPos.x, clockY: depthClockPos.y, showDate: depthShowDate, dateFont: depthDateFont, dateFormat: depthDateFormat,
+        dateX: depthDatePos.x, dateY: depthDatePos.y,
       });
       await StudioAndroid.openDepthWallpaperPicker();
     } catch {
@@ -870,7 +891,7 @@ function WidgetStudio() {
                         <Text style={[styles.wallpaperDepthClock, { fontFamily: depthClockFontFamilies[depthClockFont], fontSize: 34 * (depthClockSize / 100) }]}>12:45</Text>
                       </DraggableOverlay>}
                       {depthShowDate && <DraggableOverlay pos={depthDatePos} onChange={setDepthDatePos} containerWidth={depthPreviewSize.width} containerHeight={depthPreviewSize.height}>
-                        <Text style={[styles.wallpaperDepthDate, { fontFamily: depthClockFontFamilies[depthClockFont], fontSize: 13 * (depthClockSize / 100) }]}>Mon, Jan 1</Text>
+                        <Text style={[styles.wallpaperDepthDate, { fontFamily: depthClockFontFamilies[depthDateFont], fontSize: 13 * (depthClockSize / 100) }]}>{formatDepthDate(new Date(), depthDateFormat)}</Text>
                       </DraggableOverlay>}
                     </>}
                     <Image source={{ uri: depthLayers.foregroundPath }} style={styles.wallpaperDepthLayer} resizeMode="contain" />
@@ -879,7 +900,7 @@ function WidgetStudio() {
                         <Text style={[styles.wallpaperDepthClock, { fontFamily: depthClockFontFamilies[depthClockFont], fontSize: 34 * (depthClockSize / 100) }]}>12:45</Text>
                       </DraggableOverlay>}
                       {depthShowDate && <DraggableOverlay pos={depthDatePos} onChange={setDepthDatePos} containerWidth={depthPreviewSize.width} containerHeight={depthPreviewSize.height}>
-                        <Text style={[styles.wallpaperDepthDate, { fontFamily: depthClockFontFamilies[depthClockFont], fontSize: 13 * (depthClockSize / 100) }]}>Mon, Jan 1</Text>
+                        <Text style={[styles.wallpaperDepthDate, { fontFamily: depthClockFontFamilies[depthDateFont], fontSize: 13 * (depthClockSize / 100) }]}>{formatDepthDate(new Date(), depthDateFormat)}</Text>
                       </DraggableOverlay>}
                     </>}
                   </View>
@@ -896,6 +917,12 @@ function WidgetStudio() {
                   <View style={{ marginTop: 10 }}>
                     <ToggleRow label="Show date" value={depthShowDate} onChange={setDepthShowDate} />
                   </View>
+                  {depthShowDate && <>
+                    <Text style={[styles.controlTitle, { marginTop: 10 }]}>Date font</Text>
+                    <OptionPicker options={[...depthClockFonts]} value={depthDateFont} onSelect={(value) => setDepthDateFont(value as DepthClockFont)} />
+                    <Text style={[styles.controlTitle, { marginTop: 10 }]}>Date format</Text>
+                    <OptionPicker options={[...depthDateFormats]} value={depthDateFormat} onSelect={(value) => setDepthDateFormat(value as DepthDateFormat)} />
+                  </>}
                   <Pressable onPress={applyDepthWallpaper} style={[styles.addHomeButton, { marginTop: 12 }]}>
                     <Text style={styles.addHomeIcon}>▶</Text><View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>Set as live wallpaper</Text></View><Text style={styles.addHomeArrow}>↗</Text>
                   </Pressable>

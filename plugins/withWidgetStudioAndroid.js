@@ -573,6 +573,8 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
         .putFloat("clockX", config.getDouble("clockX").toFloat())
         .putFloat("clockY", config.getDouble("clockY").toFloat())
         .putBoolean("showDate", config.getBoolean("showDate"))
+        .putString("dateFont", config.getString("dateFont") ?: "Sans")
+        .putString("dateFormat", config.getString("dateFormat") ?: "dd/mm/yyyy")
         .putFloat("dateX", config.getDouble("dateX").toFloat())
         .putFloat("dateY", config.getDouble("dateY").toFloat())
         .apply()
@@ -626,7 +628,7 @@ class DepthWallpaperService : WallpaperService() {
     private val clockPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textAlign = Paint.Align.CENTER }
     private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textAlign = Paint.Align.CENTER }
     private val timeFormatter = DateTimeFormatter.ofPattern("h:mm")
-    private val dateFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
+    private var dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
     private val prefs by lazy { getSharedPreferences("depth_wallpaper", MODE_PRIVATE) }
     private val sensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
     private var foreground: Bitmap? = null
@@ -653,6 +655,15 @@ class DepthWallpaperService : WallpaperService() {
       else -> Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
     }
 
+    private fun dateFormatterFor(id: String): DateTimeFormatter = when (id) {
+      "dd/mm/yy" -> DateTimeFormatter.ofPattern("dd/MM/yy")
+      "dd-MMM-yyyy" -> DateTimeFormatter.ofPattern("dd - MMM- yyyy")
+      "dd MMMM" -> DateTimeFormatter.ofPattern("dd MMMM")
+      "dd MMMM yyyy" -> DateTimeFormatter.ofPattern("dd MMMM yyyy")
+      "mm/dd/yyyy" -> DateTimeFormatter.ofPattern("MM/dd/yyyy")
+      else -> DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    }
+
     private fun loadLayers() {
       foreground = prefs.getString("foreground", null)?.let { BitmapFactory.decodeFile(it) }
       background = prefs.getString("background", null)?.let { BitmapFactory.decodeFile(it) }
@@ -664,9 +675,9 @@ class DepthWallpaperService : WallpaperService() {
       showDate = prefs.getBoolean("showDate", false)
       dateX = prefs.getFloat("dateX", 0.5f)
       dateY = prefs.getFloat("dateY", 0.34f)
-      val typeface = typefaceFor(prefs.getString("clockFont", "Sans") ?: "Sans")
-      clockPaint.typeface = typeface
-      datePaint.typeface = typeface
+      clockPaint.typeface = typefaceFor(prefs.getString("clockFont", "Sans") ?: "Sans")
+      datePaint.typeface = typefaceFor(prefs.getString("dateFont", "Sans") ?: "Sans")
+      dateFormatter = dateFormatterFor(prefs.getString("dateFormat", "dd/mm/yyyy") ?: "dd/mm/yyyy")
     }
 
     private fun drawClock(canvas: Canvas) {

@@ -38,43 +38,112 @@ const StudioWidget = (props: StudioWidgetProps) => {
   const glass = props.theme === 'Liquid Glass';
   const transparent = props.theme === 'Transparent';
   const fill = transparent ? '#00000000' : glass ? '#38FFFFFF' : props.colors.background;
-  const border = transparent ? '#00000000' : glass ? '#72FFFFFF' : props.colors.border;
+  const borderColor = transparent ? '#00000000' : glass ? '#72FFFFFF' : props.colors.border;
   const gradientTint = `#55${props.gradientEnd.replace('#', '')}`;
   // Widget layouts run in an isolated runtime. Keep every helper used by this
   // component in its function body so it is included in the generated widget
   // bundle (including the launcher/gallery preview bundle).
+  const widgetTime = (zone: string, format: string, seconds: boolean, period: boolean) => {
+    const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hourCycle: format === '12-hour' ? 'h12' : 'h23' };
+    if (zone !== 'local') options.timeZone = zone;
+    if (seconds) options.second = '2-digit';
+    const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(new Date());
+    const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '00';
+    const time = `${value('hour')}:${value('minute')}${seconds ? `:${value('second')}` : ''}`;
+    return format === '12-hour' && period ? `${time} ${value('dayPeriod')}` : time;
+  };
+
+  const zoneShortLabel = (zone: string) => zone === 'local' ? 'LOCAL' : zone.split('/').pop()?.replaceAll('_', ' ').toUpperCase() ?? zone;
+
+  const clockHandAngle = (zone: string, hand: 'hour' | 'minute' | 'second', now: Date) => {
+    const options: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' };
+    if (zone !== 'local') options.timeZone = zone;
+    const parts = new Intl.DateTimeFormat('en-GB', options).formatToParts(now);
+    const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+    const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0);
+    const second = Number(parts.find((part) => part.type === 'second')?.value ?? 0);
+    return hand === 'hour' ? (hour % 12) * 30 + minute * 0.5 + second / 120
+      : hand === 'minute' ? minute * 6 + second * 0.1 : second * 6;
+  };
+
+  const AnalogFace = ({ props: faceProps, glass: faceGlass, zone }: { props: StudioWidgetProps; glass: boolean; zone: string }) => {
+    const ink = faceGlass ? '#FFFFFF' : faceProps.colors.title;
+    const faceShape = ['Full numerals', 'Dot markers', 'Roman numerals', 'Railway markers', '24-hour numerals', 'Sector dial', 'Bauhaus'].includes(faceProps.analogClockStyle) ? Shapes.Circle
+      : faceProps.analogClockStyle === 'Heart markers' ? Shapes.Material.Heart
+        : faceProps.analogClockStyle === 'Skeleton' ? Shapes.RoundedCorner(4) : Shapes.RoundedCorner(18);
+    const handColors = faceGlass ? { hour: '#FFFFFF', minute: '#FFFFFF', second: '#FFFFFF' } : faceProps.clockHandColors;
+    const now = new Date();
+    const hands = ['hour', 'minute', 'second'] as const;
+    return <Box contentAlignment="center" modifiers={[size(126, 126), clip(faceShape), border(1, faceGlass ? '#88FFFFFF' : faceProps.colors.border)]}>
+      {['Classic numerals', 'Full numerals', 'Roman numerals', 'Railway markers', '24-hour numerals', 'Sector dial', 'Bauhaus'].includes(faceProps.analogClockStyle) && <Box modifiers={[fillMaxSize()]}>
+        <Box contentAlignment="topCenter" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: faceProps.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{faceProps.analogClockStyle === 'Roman numerals' ? 'XII' : faceProps.analogClockStyle === '24-hour numerals' ? '00' : '12'}</Text></Box>
+        <Box contentAlignment="centerEnd" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: faceProps.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{faceProps.analogClockStyle === 'Roman numerals' ? 'III' : faceProps.analogClockStyle === '24-hour numerals' ? '06' : '3'}</Text></Box>
+        <Box contentAlignment="bottomCenter" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: faceProps.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{faceProps.analogClockStyle === 'Roman numerals' ? 'VI' : faceProps.analogClockStyle === '24-hour numerals' ? '12' : '6'}</Text></Box>
+        <Box contentAlignment="centerStart" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: faceProps.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{faceProps.analogClockStyle === 'Roman numerals' ? 'IX' : faceProps.analogClockStyle === '24-hour numerals' ? '18' : '9'}</Text></Box>
+      </Box>}
+      {hands.map((hand) => {
+        const handLength = hand === 'hour' ? 35 : hand === 'minute' ? 55 : 60;
+        return <Box key={hand} contentAlignment="center" modifiers={[fillMaxSize(), rotate(clockHandAngle(zone, hand, now))]}>
+          <Box contentAlignment="topCenter" modifiers={[fillMaxSize(), paddingAll(63 - handLength)]}>
+            <Box modifiers={[width(hand === 'hour' ? 3 : hand === 'minute' ? 2 : 1), height(handLength), background(handColors[hand])]} />
+          </Box>
+        </Box>
+      })}
+      <Box contentAlignment="center" modifiers={[fillMaxSize()]}><Box modifiers={[size(8, 8), clip(Shapes.Circle), background(handColors.hour)]} /></Box>
+    </Box>;
+  };
+
+  const DigitalFace = ({ props: faceProps, glass: faceGlass, zone, time }: { props: StudioWidgetProps; glass: boolean; zone: string; time: string }) => {
+    const framed = ['Flip style', 'Split-flap', 'LED segments', 'Matrix', 'Railway display'].includes(faceProps.digitalClockStyle);
+    const tint = faceGlass ? '#FFFFFF' : faceProps.colors.value;
+    const displayColor = faceGlass ? '#FFFFFF' : faceProps.digitalClockStyle === 'Matrix' ? '#63FF9A' : faceProps.digitalClockStyle === 'Railway display' ? '#F1EFE7' : tint;
+    const clockFontSize = faceProps.digitalClockStyle === 'Compact' ? 17 : faceProps.digitalClockStyle === 'Bold display' ? 27 : faceProps.digitalClockStyle === 'Large display' ? 31 : 23;
+    const digitStyle = { fontSize: clockFontSize, fontWeight: faceProps.digitalClockStyle === 'Bold display' || faceProps.digitalClockStyle === 'Large display' ? ('900' as const) : ('700' as const), letterSpacing: faceProps.digitalClockStyle === 'Compact' ? -1 : ['LED segments', 'Matrix'].includes(faceProps.digitalClockStyle) ? 1 : 0, fontFamily: ['LED segments', 'Matrix'].includes(faceProps.digitalClockStyle) ? ('monospace' as const) : ('default' as const) };
+    const clockColors = faceGlass ? { ...faceProps.clockHandColors, hour: '#FFFFFF', minute: '#FFFFFF', second: '#FFFFFF', separator: '#FFFFFF' } : faceProps.clockHandColors;
+    const timeParts = time.match(/^(\d{1,2})(:)(\d{2})(?::(\d{2}))?(.*)$/);
+    const now = new Date();
+    const date = new Intl.DateTimeFormat(undefined, { timeZone: zone === 'local' ? undefined : zone, weekday: 'short', month: 'short', day: 'numeric' }).format(now).toUpperCase();
+    const frameBackground = faceGlass ? '#24FFFFFF' : faceProps.digitalClockStyle === 'Matrix' ? '#07150F' : faceProps.digitalClockStyle === 'LED segments' ? '#101A13' : faceProps.digitalClockStyle === 'Railway display' ? '#18221F' : '#303129';
+    const frameBorder = faceGlass ? '#88FFFFFF' : faceProps.digitalClockStyle === 'Matrix' ? '#2A6545' : faceProps.digitalClockStyle === 'LED segments' ? '#356D45' : faceProps.digitalClockStyle === 'Railway display' ? '#D14545' : faceProps.colors.border;
+    return <Box contentAlignment="center" modifiers={framed ? [clip(Shapes.RoundedCorner(12)), background(frameBackground), border(1, frameBorder), paddingAll(8)] : []}>
+      <Column>
+        <Text color={faceGlass ? '#E8EDF4' : faceProps.colors.meta} style={{ fontSize: 8 }}>{faceProps.digitalClockStyle}</Text>
+        {timeParts ? <Row>
+          <Text color={clockColors.hour} style={digitStyle}>{timeParts[1]}</Text>
+          <Text color={clockColors.separator} style={digitStyle}>{timeParts[2]}</Text>
+          <Text color={clockColors.minute} style={digitStyle}>{timeParts[3]}</Text>
+          {timeParts[4] && <Text color={clockColors.separator} style={digitStyle}>:</Text>}
+          {timeParts[4] && <Text color={clockColors.second} style={digitStyle}>{timeParts[4]}</Text>}
+          {!!timeParts[5] && <Text color={displayColor} style={{ fontSize: 9, fontWeight: '700' }}>{timeParts[5]}</Text>}
+        </Row> : <Text color={displayColor} style={digitStyle}>{time}</Text>}
+        {faceProps.digitalClockStyle === 'Stacked date' && <Text color={faceGlass ? '#FFFFFF' : faceProps.colors.title} style={{ fontSize: 9, fontWeight: '700' }}>{date}</Text>}
+        <Text color={faceGlass ? '#E8EDF4' : faceProps.colors.subtitle} style={{ fontSize: 8 }}>{zoneShortLabel(zone)}</Text>
+      </Column>
+    </Box>;
+  };
+
   const ClockSample = ({ props: clockProps, glass: clockGlass }: { props: StudioWidgetProps; glass: boolean }) => {
-    const makeTime = (zone: string) => {
-      const options: Intl.DateTimeFormatOptions = {
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: clockProps.timeFormat === '12-hour' ? 'h12' : 'h23',
-      };
-      if (zone !== 'local') options.timeZone = zone;
-      if (clockProps.showSeconds) options.second = '2-digit';
-      const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(new Date());
-      const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '00';
-      const clock = `${value('hour')}:${value('minute')}${clockProps.showSeconds ? `:${value('second')}` : ''}`;
-      return clockProps.timeFormat === '12-hour' && clockProps.showPeriod ? `${clock} ${value('dayPeriod')}` : clock;
-    };
-    const zoneLabel = (zone: string) => zone === 'local' ? 'LOCAL' : zone.split('/').pop()?.replaceAll('_', ' ').toUpperCase() ?? zone;
     const analog = clockProps.widgetKind === 'clock-analog' || clockProps.clockMode === 'Analog' || clockProps.clockMode === 'Both';
     const digital = clockProps.widgetKind === 'clock-digital' || clockProps.clockMode === 'Digital' || clockProps.clockMode === 'Both';
-    const time = makeTime(clockProps.clockZone);
-    const secondTime = makeTime(clockProps.secondClockZone);
-    const primaryColor = clockGlass ? '#FFFFFF' : clockProps.colors.value;
-    const mutedColor = clockGlass ? '#E8EDF4' : clockProps.colors.meta;
-
-    return <Column>
-      {analog && <Text color={primaryColor} style={{ fontSize: clockProps.clockMode === 'Both' ? 30 : 54, fontWeight: '700' }}>◷</Text>}
-      {digital && <Text color={primaryColor} style={{ fontSize: clockProps.clockMode === 'Both' ? 18 : 30, fontWeight: '700' }}>{time}</Text>}
-      {clockProps.showSecondClock && <Text color={primaryColor} style={{ fontSize: 16, fontWeight: '700' }}>{secondTime}</Text>}
-      <Text color={mutedColor} style={{ fontSize: 8 }}>{zoneLabel(clockProps.clockZone)}{clockProps.showSecondClock ? `  ·  ${zoneLabel(clockProps.secondClockZone)}` : ''}</Text>
+    const time = widgetTime(clockProps.clockZone, clockProps.timeFormat, clockProps.showSeconds, clockProps.showPeriod);
+    const secondTime = widgetTime(clockProps.secondClockZone, clockProps.timeFormat, clockProps.showSeconds, clockProps.showPeriod);
+    if (clockProps.showSecondClock) return <Column>
+      <Box contentAlignment="center" modifiers={[fillMaxSize()]}>
+        <Box contentAlignment="centerStart" modifiers={[fillMaxSize(0.48)]}>{analog ? <AnalogFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} /> : <DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} time={time} />}</Box>
+        <Box contentAlignment="centerEnd" modifiers={[fillMaxSize(0.48)]}>{analog ? <AnalogFace props={clockProps} glass={clockGlass} zone={clockProps.secondClockZone} /> : <DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.secondClockZone} time={secondTime} />}</Box>
+      </Box>
+      {clockProps.clockMode === 'Both' && <Text color={clockGlass ? '#FFFFFF' : clockProps.colors.value} style={{ fontSize: 12, fontWeight: '700' }}>{time}    {secondTime}</Text>}
+      <Text color={clockGlass ? '#E8EDF4' : clockProps.colors.meta} style={{ fontSize: 8 }}>{zoneShortLabel(clockProps.clockZone)}                {zoneShortLabel(clockProps.secondClockZone)}</Text>
     </Column>;
+    if (clockProps.clockMode === 'Both') return <Column>
+      {analog && <AnalogFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} />}
+      {digital && <DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} time={time} />}
+    </Column>;
+    return analog ? <AnalogFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} /> : <DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} time={time} />;
   };
 
   return (
-    <Box modifiers={[fillMaxSize(), clip(widgetShape), background(border), paddingAll(1)]}>
+    <Box modifiers={[fillMaxSize(), clip(widgetShape), background(borderColor), paddingAll(1)]}>
       <Box modifiers={[fillMaxSize(), clip(widgetShape), background(fill), paddingAll(12)]}>
         {props.theme === 'Gradient' && <Box contentAlignment="bottomEnd" modifiers={[fillMaxSize(0.72), clip(widgetShape), background(gradientTint)]} />}
         {props.widgetKind.startsWith('clock-') ? <ClockSample props={props} glass={glass} />
@@ -106,106 +175,6 @@ const StudioWidget = (props: StudioWidgetProps) => {
     </Box>
   );
 };
-
-function ClockSample({ props, glass }: { props: StudioWidgetProps; glass: boolean }) {
-  const accent = glass ? '#FFFFFF' : props.colors.icon;
-  const analog = props.widgetKind === 'clock-analog' || props.clockMode === 'Analog' || props.clockMode === 'Both';
-  const digital = props.widgetKind === 'clock-digital' || props.clockMode === 'Digital' || props.clockMode === 'Both';
-  const time = widgetTime(props.clockZone, props.timeFormat, props.showSeconds, props.showPeriod);
-  const secondTime = widgetTime(props.secondClockZone, props.timeFormat, props.showSeconds, props.showPeriod);
-  if (props.showSecondClock) return <Column>
-    <Box contentAlignment="center" modifiers={[fillMaxSize()]}>
-      <Box contentAlignment="centerStart" modifiers={[fillMaxSize(0.48)]}>{analog ? <AnalogFace props={props} glass={glass} zone={props.clockZone} /> : <DigitalFace props={props} glass={glass} zone={props.clockZone} time={time} />}</Box>
-      <Box contentAlignment="centerEnd" modifiers={[fillMaxSize(0.48)]}>{analog ? <AnalogFace props={props} glass={glass} zone={props.secondClockZone} /> : <DigitalFace props={props} glass={glass} zone={props.secondClockZone} time={secondTime} />}</Box>
-    </Box>
-    {props.clockMode === 'Both' && <Text color={glass ? '#FFFFFF' : props.colors.value} style={{ fontSize: 12, fontWeight: '700' }}>{time}    {secondTime}</Text>}
-    <Text color={glass ? '#E8EDF4' : props.colors.meta} style={{ fontSize: 8 }}>{zoneShortLabel(props.clockZone)}                {zoneShortLabel(props.secondClockZone)}</Text>
-  </Column>;
-  if (props.clockMode === 'Both') return <Column>
-    {analog && <AnalogFace props={props} glass={glass} zone={props.clockZone} />}
-    {digital && <DigitalFace props={props} glass={glass} zone={props.clockZone} time={time} />}
-  </Column>;
-  return analog ? <AnalogFace props={props} glass={glass} zone={props.clockZone} /> : <DigitalFace props={props} glass={glass} zone={props.clockZone} time={time} />;
-}
-
-function widgetTime(zone: string, format: string, seconds: boolean, period: boolean) {
-  const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hourCycle: format === '12-hour' ? 'h12' : 'h23' };
-  if (zone !== 'local') options.timeZone = zone;
-  if (seconds) options.second = '2-digit';
-  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(new Date());
-  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '00';
-  const time = `${value('hour')}:${value('minute')}${seconds ? `:${value('second')}` : ''}`;
-  return format === '12-hour' && period ? `${time} ${value('dayPeriod')}` : time;
-}
-
-function zoneShortLabel(zone: string) { return zone === 'local' ? 'LOCAL' : zone.split('/').pop()?.replaceAll('_', ' ').toUpperCase() ?? zone; }
-
-function AnalogFace({ props, glass, zone }: { props: StudioWidgetProps; glass: boolean; zone: string }) {
-  const ink = glass ? '#FFFFFF' : props.colors.title;
-  const faceShape = ['Full numerals', 'Dot markers', 'Roman numerals', 'Railway markers', '24-hour numerals', 'Sector dial', 'Bauhaus'].includes(props.analogClockStyle) ? Shapes.Circle
-    : props.analogClockStyle === 'Heart markers' ? Shapes.Material.Heart
-      : props.analogClockStyle === 'Skeleton' ? Shapes.RoundedCorner(4) : Shapes.RoundedCorner(18);
-  const handColors = glass ? { hour: '#FFFFFF', minute: '#FFFFFF', second: '#FFFFFF' } : props.clockHandColors;
-  const now = new Date();
-  const hands = ['hour', 'minute', 'second'] as const;
-  return <Box contentAlignment="center" modifiers={[size(126, 126), clip(faceShape), border(1, glass ? '#88FFFFFF' : props.colors.border)]}>
-    {['Classic numerals', 'Full numerals', 'Roman numerals', 'Railway markers', '24-hour numerals', 'Sector dial', 'Bauhaus'].includes(props.analogClockStyle) && <Box modifiers={[fillMaxSize()]}>
-      <Box contentAlignment="topCenter" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: props.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{props.analogClockStyle === 'Roman numerals' ? 'XII' : props.analogClockStyle === '24-hour numerals' ? '00' : '12'}</Text></Box>
-      <Box contentAlignment="centerEnd" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: props.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{props.analogClockStyle === 'Roman numerals' ? 'III' : props.analogClockStyle === '24-hour numerals' ? '06' : '3'}</Text></Box>
-      <Box contentAlignment="bottomCenter" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: props.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{props.analogClockStyle === 'Roman numerals' ? 'VI' : props.analogClockStyle === '24-hour numerals' ? '12' : '6'}</Text></Box>
-      <Box contentAlignment="centerStart" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: props.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{props.analogClockStyle === 'Roman numerals' ? 'IX' : props.analogClockStyle === '24-hour numerals' ? '18' : '9'}</Text></Box>
-    </Box>}
-    {hands.map((hand) => {
-      const handLength = hand === 'hour' ? 35 : hand === 'minute' ? 55 : 60;
-      return <Box key={hand} contentAlignment="center" modifiers={[fillMaxSize(), rotate(clockHandAngle(zone, hand, now))]}>
-        <Box contentAlignment="topCenter" modifiers={[fillMaxSize(), paddingAll(63 - handLength)]}>
-          <Box modifiers={[width(hand === 'hour' ? 3 : hand === 'minute' ? 2 : 1), height(handLength), background(handColors[hand])]} />
-        </Box>
-      </Box>
-    })}
-    <Box contentAlignment="center" modifiers={[fillMaxSize()]}><Box modifiers={[size(8, 8), clip(Shapes.Circle), background(handColors.hour)]} /></Box>
-  </Box>;
-}
-
-function clockHandAngle(zone: string, hand: 'hour' | 'minute' | 'second', now: Date) {
-  const options: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' };
-  if (zone !== 'local') options.timeZone = zone;
-  const parts = new Intl.DateTimeFormat('en-GB', options).formatToParts(now);
-  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
-  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0);
-  const second = Number(parts.find((part) => part.type === 'second')?.value ?? 0);
-  return hand === 'hour' ? (hour % 12) * 30 + minute * 0.5 + second / 120
-    : hand === 'minute' ? minute * 6 + second * 0.1 : second * 6;
-}
-
-function DigitalFace({ props, glass, zone, time }: { props: StudioWidgetProps; glass: boolean; zone: string; time: string }) {
-  const framed = ['Flip style', 'Split-flap', 'LED segments', 'Matrix', 'Railway display'].includes(props.digitalClockStyle);
-  const tint = glass ? '#FFFFFF' : props.colors.value;
-  const displayColor = glass ? '#FFFFFF' : props.digitalClockStyle === 'Matrix' ? '#63FF9A' : props.digitalClockStyle === 'Railway display' ? '#F1EFE7' : tint;
-  const clockFontSize = props.digitalClockStyle === 'Compact' ? 17 : props.digitalClockStyle === 'Bold display' ? 27 : props.digitalClockStyle === 'Large display' ? 31 : 23;
-  const digitStyle = { fontSize: clockFontSize, fontWeight: props.digitalClockStyle === 'Bold display' || props.digitalClockStyle === 'Large display' ? ('900' as const) : ('700' as const), letterSpacing: props.digitalClockStyle === 'Compact' ? -1 : ['LED segments', 'Matrix'].includes(props.digitalClockStyle) ? 1 : 0, fontFamily: ['LED segments', 'Matrix'].includes(props.digitalClockStyle) ? ('monospace' as const) : ('default' as const) };
-  const clockColors = glass ? { ...props.clockHandColors, hour: '#FFFFFF', minute: '#FFFFFF', second: '#FFFFFF', separator: '#FFFFFF' } : props.clockHandColors;
-  const timeParts = time.match(/^(\d{1,2})(:)(\d{2})(?::(\d{2}))?(.*)$/);
-  const now = new Date();
-  const date = new Intl.DateTimeFormat(undefined, { timeZone: zone === 'local' ? undefined : zone, weekday: 'short', month: 'short', day: 'numeric' }).format(now).toUpperCase();
-  const frameBackground = glass ? '#24FFFFFF' : props.digitalClockStyle === 'Matrix' ? '#07150F' : props.digitalClockStyle === 'LED segments' ? '#101A13' : props.digitalClockStyle === 'Railway display' ? '#18221F' : '#303129';
-  const frameBorder = glass ? '#88FFFFFF' : props.digitalClockStyle === 'Matrix' ? '#2A6545' : props.digitalClockStyle === 'LED segments' ? '#356D45' : props.digitalClockStyle === 'Railway display' ? '#D14545' : props.colors.border;
-  return <Box contentAlignment="center" modifiers={framed ? [clip(Shapes.RoundedCorner(12)), background(frameBackground), border(1, frameBorder), paddingAll(8)] : []}>
-    <Column>
-      <Text color={glass ? '#E8EDF4' : props.colors.meta} style={{ fontSize: 8 }}>{props.digitalClockStyle}</Text>
-      {timeParts ? <Row>
-        <Text color={clockColors.hour} style={digitStyle}>{timeParts[1]}</Text>
-        <Text color={clockColors.separator} style={digitStyle}>{timeParts[2]}</Text>
-        <Text color={clockColors.minute} style={digitStyle}>{timeParts[3]}</Text>
-        {timeParts[4] && <Text color={clockColors.separator} style={digitStyle}>:</Text>}
-        {timeParts[4] && <Text color={clockColors.second} style={digitStyle}>{timeParts[4]}</Text>}
-        {!!timeParts[5] && <Text color={displayColor} style={{ fontSize: 9, fontWeight: '700' }}>{timeParts[5]}</Text>}
-      </Row> : <Text color={displayColor} style={digitStyle}>{time}</Text>}
-      {props.digitalClockStyle === 'Stacked date' && <Text color={glass ? '#FFFFFF' : props.colors.title} style={{ fontSize: 9, fontWeight: '700' }}>{date}</Text>}
-      <Text color={glass ? '#E8EDF4' : props.colors.subtitle} style={{ fontSize: 8 }}>{zoneShortLabel(zone)}</Text>
-    </Column>
-  </Box>;
-}
 
 const defaultWidgetProps: StudioWidgetProps = {
   title: 'Soft Hours',

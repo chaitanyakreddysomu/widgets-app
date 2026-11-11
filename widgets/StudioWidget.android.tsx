@@ -1,6 +1,6 @@
 import { Box, Column, Row, Text } from '@expo/ui/jetpack-compose';
 import { createWidget } from 'expo-widgets';
-import { background, border, clip, fillMaxSize, height, paddingAll, rotate, Shapes, size, width } from '@expo/ui/jetpack-compose/modifiers';
+import { background, cornerRadius, fillMaxSize, paddingAll } from '@expo/ui/jetpack-compose/modifiers';
 type ContentAlignment = 'topStart' | 'topCenter' | 'topEnd' | 'centerStart' | 'center' | 'centerEnd' | 'bottomStart' | 'bottomCenter' | 'bottomEnd';
 
 type WidgetColors = {
@@ -18,6 +18,27 @@ type StudioWidgetProps = {
   clockHandColors: ClockHandColors; analogClockStyle: string; digitalClockStyle: string;
 };
 
+// Glance (the Android home-screen widget renderer) only supports a fixed
+// modifier set: padding, size, fillMax, background, and cornerRadius.
+// clip(Shapes...), border(), and rotate() are app-UI-only modifiers that are
+// silently ignored in the widget runtime, so widget shapes use cornerRadius
+// and analog clocks fall back to a digital time readout (no rotating hands
+// is possible on a real home-screen widget).
+const shapeCornerRadius = (shape: string): number => {
+  switch (shape) {
+    case 'Circle':
+    case 'Pill': return 999;
+    case 'Square':
+    case 'Cut corner': return 4;
+    case 'Squircle': return 32;
+    case 'Diamond':
+    case 'Heart':
+    case 'Arch':
+    case 'Hexagon': return 20;
+    default: return 22;
+  }
+};
+
 const StudioWidget = (props: StudioWidgetProps) => {
   'widget';
   const alignmentFor = (x: number, y: number): ContentAlignment => {
@@ -26,15 +47,7 @@ const StudioWidget = (props: StudioWidgetProps) => {
     if (vertical === 'center' && horizontal === 'Center') return 'center';
     return `${vertical}${horizontal}` as ContentAlignment;
   };
-  const widgetShape = props.shape === 'Circle' ? Shapes.Circle
-    : props.shape === 'Pill' ? Shapes.Material.Pill
-      : props.shape === 'Square' ? Shapes.Rectangle
-        : props.shape === 'Cut corner' ? Shapes.CutCorner(20)
-          : props.shape === 'Diamond' ? Shapes.Material.Diamond
-            : props.shape === 'Heart' ? Shapes.Material.Heart
-              : props.shape === 'Arch' ? Shapes.Material.Arch
-                : props.shape === 'Hexagon' ? Shapes.Material.Cookie6Sided
-                  : props.shape === 'Squircle' ? Shapes.RoundedCorner(32) : Shapes.RoundedCorner(22);
+  const widgetCornerRadius = shapeCornerRadius(props.shape);
   const glass = props.theme === 'Liquid Glass';
   const transparent = props.theme === 'Transparent';
   const fill = transparent ? '#00000000' : glass ? '#38FFFFFF' : props.colors.background;
@@ -55,44 +68,6 @@ const StudioWidget = (props: StudioWidgetProps) => {
 
   const zoneShortLabel = (zone: string) => zone === 'local' ? 'LOCAL' : zone.split('/').pop()?.replaceAll('_', ' ').toUpperCase() ?? zone;
 
-  const clockHandAngle = (zone: string, hand: 'hour' | 'minute' | 'second', now: Date) => {
-    const options: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' };
-    if (zone !== 'local') options.timeZone = zone;
-    const parts = new Intl.DateTimeFormat('en-GB', options).formatToParts(now);
-    const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
-    const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0);
-    const second = Number(parts.find((part) => part.type === 'second')?.value ?? 0);
-    return hand === 'hour' ? (hour % 12) * 30 + minute * 0.5 + second / 120
-      : hand === 'minute' ? minute * 6 + second * 0.1 : second * 6;
-  };
-
-  const AnalogFace = ({ props: faceProps, glass: faceGlass, zone }: { props: StudioWidgetProps; glass: boolean; zone: string }) => {
-    const ink = faceGlass ? '#FFFFFF' : faceProps.colors.title;
-    const faceShape = ['Full numerals', 'Dot markers', 'Roman numerals', 'Railway markers', '24-hour numerals', 'Sector dial', 'Bauhaus'].includes(faceProps.analogClockStyle) ? Shapes.Circle
-      : faceProps.analogClockStyle === 'Heart markers' ? Shapes.Material.Heart
-        : faceProps.analogClockStyle === 'Skeleton' ? Shapes.RoundedCorner(4) : Shapes.RoundedCorner(18);
-    const handColors = faceGlass ? { hour: '#FFFFFF', minute: '#FFFFFF', second: '#FFFFFF' } : faceProps.clockHandColors;
-    const now = new Date();
-    const hands = ['hour', 'minute', 'second'] as const;
-    return <Box contentAlignment="center" modifiers={[size(126, 126), clip(faceShape), border(1, faceGlass ? '#88FFFFFF' : faceProps.colors.border)]}>
-      {['Classic numerals', 'Full numerals', 'Roman numerals', 'Railway markers', '24-hour numerals', 'Sector dial', 'Bauhaus'].includes(faceProps.analogClockStyle) && <Box modifiers={[fillMaxSize()]}>
-        <Box contentAlignment="topCenter" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: faceProps.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{faceProps.analogClockStyle === 'Roman numerals' ? 'XII' : faceProps.analogClockStyle === '24-hour numerals' ? '00' : '12'}</Text></Box>
-        <Box contentAlignment="centerEnd" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: faceProps.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{faceProps.analogClockStyle === 'Roman numerals' ? 'III' : faceProps.analogClockStyle === '24-hour numerals' ? '06' : '3'}</Text></Box>
-        <Box contentAlignment="bottomCenter" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: faceProps.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{faceProps.analogClockStyle === 'Roman numerals' ? 'VI' : faceProps.analogClockStyle === '24-hour numerals' ? '12' : '6'}</Text></Box>
-        <Box contentAlignment="centerStart" modifiers={[fillMaxSize()]}><Text color={ink} style={{ fontSize: faceProps.analogClockStyle === 'Roman numerals' ? 12 : 16, fontWeight: '700' }}>{faceProps.analogClockStyle === 'Roman numerals' ? 'IX' : faceProps.analogClockStyle === '24-hour numerals' ? '18' : '9'}</Text></Box>
-      </Box>}
-      {hands.map((hand) => {
-        const handLength = hand === 'hour' ? 35 : hand === 'minute' ? 55 : 60;
-        return <Box key={hand} contentAlignment="center" modifiers={[fillMaxSize(), rotate(clockHandAngle(zone, hand, now))]}>
-          <Box contentAlignment="topCenter" modifiers={[fillMaxSize(), paddingAll(63 - handLength)]}>
-            <Box modifiers={[width(hand === 'hour' ? 3 : hand === 'minute' ? 2 : 1), height(handLength), background(handColors[hand])]} />
-          </Box>
-        </Box>
-      })}
-      <Box contentAlignment="center" modifiers={[fillMaxSize()]}><Box modifiers={[size(8, 8), clip(Shapes.Circle), background(handColors.hour)]} /></Box>
-    </Box>;
-  };
-
   const DigitalFace = ({ props: faceProps, glass: faceGlass, zone, time }: { props: StudioWidgetProps; glass: boolean; zone: string; time: string }) => {
     const framed = ['Flip style', 'Split-flap', 'LED segments', 'Matrix', 'Railway display'].includes(faceProps.digitalClockStyle);
     const tint = faceGlass ? '#FFFFFF' : faceProps.colors.value;
@@ -104,8 +79,7 @@ const StudioWidget = (props: StudioWidgetProps) => {
     const now = new Date();
     const date = new Intl.DateTimeFormat(undefined, { timeZone: zone === 'local' ? undefined : zone, weekday: 'short', month: 'short', day: 'numeric' }).format(now).toUpperCase();
     const frameBackground = faceGlass ? '#24FFFFFF' : faceProps.digitalClockStyle === 'Matrix' ? '#07150F' : faceProps.digitalClockStyle === 'LED segments' ? '#101A13' : faceProps.digitalClockStyle === 'Railway display' ? '#18221F' : '#303129';
-    const frameBorder = faceGlass ? '#88FFFFFF' : faceProps.digitalClockStyle === 'Matrix' ? '#2A6545' : faceProps.digitalClockStyle === 'LED segments' ? '#356D45' : faceProps.digitalClockStyle === 'Railway display' ? '#D14545' : faceProps.colors.border;
-    return <Box contentAlignment="center" modifiers={framed ? [clip(Shapes.RoundedCorner(12)), background(frameBackground), border(1, frameBorder), paddingAll(8)] : []}>
+    return <Box contentAlignment="center" modifiers={framed ? [cornerRadius(12), background(frameBackground), paddingAll(8)] : []}>
       <Column>
         <Text color={faceGlass ? '#E8EDF4' : faceProps.colors.meta} style={{ fontSize: 8 }}>{faceProps.digitalClockStyle}</Text>
         {timeParts ? <Row>
@@ -123,29 +97,22 @@ const StudioWidget = (props: StudioWidgetProps) => {
   };
 
   const ClockSample = ({ props: clockProps, glass: clockGlass }: { props: StudioWidgetProps; glass: boolean }) => {
-    const analog = clockProps.widgetKind === 'clock-analog' || clockProps.clockMode === 'Analog' || clockProps.clockMode === 'Both';
-    const digital = clockProps.widgetKind === 'clock-digital' || clockProps.clockMode === 'Digital' || clockProps.clockMode === 'Both';
     const time = widgetTime(clockProps.clockZone, clockProps.timeFormat, clockProps.showSeconds, clockProps.showPeriod);
     const secondTime = widgetTime(clockProps.secondClockZone, clockProps.timeFormat, clockProps.showSeconds, clockProps.showPeriod);
     if (clockProps.showSecondClock) return <Column>
       <Box contentAlignment="center" modifiers={[fillMaxSize()]}>
-        <Box contentAlignment="centerStart" modifiers={[fillMaxSize(0.48)]}>{analog ? <AnalogFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} /> : <DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} time={time} />}</Box>
-        <Box contentAlignment="centerEnd" modifiers={[fillMaxSize(0.48)]}>{analog ? <AnalogFace props={clockProps} glass={clockGlass} zone={clockProps.secondClockZone} /> : <DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.secondClockZone} time={secondTime} />}</Box>
+        <Box contentAlignment="centerStart" modifiers={[fillMaxSize(0.48)]}><DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} time={time} /></Box>
+        <Box contentAlignment="centerEnd" modifiers={[fillMaxSize(0.48)]}><DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.secondClockZone} time={secondTime} /></Box>
       </Box>
-      {clockProps.clockMode === 'Both' && <Text color={clockGlass ? '#FFFFFF' : clockProps.colors.value} style={{ fontSize: 12, fontWeight: '700' }}>{time}    {secondTime}</Text>}
       <Text color={clockGlass ? '#E8EDF4' : clockProps.colors.meta} style={{ fontSize: 8 }}>{zoneShortLabel(clockProps.clockZone)}                {zoneShortLabel(clockProps.secondClockZone)}</Text>
     </Column>;
-    if (clockProps.clockMode === 'Both') return <Column>
-      {analog && <AnalogFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} />}
-      {digital && <DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} time={time} />}
-    </Column>;
-    return analog ? <AnalogFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} /> : <DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} time={time} />;
+    return <DigitalFace props={clockProps} glass={clockGlass} zone={clockProps.clockZone} time={time} />;
   };
 
   return (
-    <Box modifiers={[fillMaxSize(), clip(widgetShape), background(borderColor), paddingAll(1)]}>
-      <Box modifiers={[fillMaxSize(), clip(widgetShape), background(fill), paddingAll(12)]}>
-        {props.theme === 'Gradient' && <Box contentAlignment="bottomEnd" modifiers={[fillMaxSize(0.72), clip(widgetShape), background(gradientTint)]} />}
+    <Box modifiers={[fillMaxSize(), cornerRadius(widgetCornerRadius), background(borderColor), paddingAll(1)]}>
+      <Box modifiers={[fillMaxSize(), cornerRadius(widgetCornerRadius), background(fill), paddingAll(12)]}>
+        {props.theme === 'Gradient' && <Box contentAlignment="bottomEnd" modifiers={[fillMaxSize(0.72), cornerRadius(widgetCornerRadius), background(gradientTint)]} />}
         {props.widgetKind.startsWith('clock-') ? <ClockSample props={props} glass={glass} />
           : props.widgetKind === 'calendar' ? <Column>
           <Text color={glass ? '#FFFFFF' : props.colors.title} style={{ fontSize: 16, fontWeight: '700' }}>{props.monthTitle}</Text>

@@ -886,7 +886,7 @@ function WidgetStudio() {
               {pickedWallpaperPath && <Pressable onPress={applyPickedWallpaper} disabled={wallpaperBusy} style={styles.addHomeButton}><Text style={styles.addHomeIcon}>✓</Text><View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>{wallpaperBusy ? 'Applying…' : 'Set as wallpaper'}</Text></View></Pressable>}
               <View style={styles.customCard}>
                 <Text style={styles.controlTitle}>Depth effect</Text>
-                <Text style={styles.controlSub}>Cuts the subject out of your photo on-device, then renders it as a live wallpaper that shifts over a blurred background as you tilt your phone or swipe home screens.</Text>
+                <Text style={styles.controlSub}>Cuts a person out of your photo on-device, then renders them as a live wallpaper that shifts over a blurred background as you tilt your phone or swipe home screens. Works best with a clear person in the shot.</Text>
                 {pickedWallpaperPath ? (
                   <Pressable onPress={createDepthEffect} disabled={depthProcessing} style={[styles.addHomeButton, { marginTop: 12 }]}>
                     <Text style={styles.addHomeIcon}>◎</Text>

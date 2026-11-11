@@ -128,7 +128,7 @@ module.exports = function withWidgetStudioAndroid(config) {
     if (!mod.modResults.contents.includes('androidx.core:core-ktx')) {
       mod.modResults.contents = mod.modResults.contents.replace(
         /(implementation\("com\.facebook\.react:react-android"\))/,
-        '$1\n    implementation("androidx.core:core-ktx:1.13.1")\n    implementation("androidx.health.connect:connect-client:1.1.0")\n    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")\n    implementation("com.google.mlkit:subject-segmentation:16.0.0-beta1")\n    implementation("com.google.android.gms:play-services-tasks:18.2.0")',
+        '$1\n    implementation("androidx.core:core-ktx:1.13.1")\n    implementation("androidx.health.connect:connect-client:1.1.0")\n    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")\n    implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")\n    implementation("com.google.android.gms:play-services-tasks:18.2.0")',
       );
     }
     return mod;
@@ -216,9 +216,9 @@ import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
-import com.google.mlkit.vision.segmentation.subject.SubjectSegmentationResult
-import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
+import com.google.mlkit.vision.segmentation.Segmentation
+import com.google.mlkit.vision.segmentation.SegmentationMask
+import com.google.mlkit.vision.segmentation.selfie.SelfieSegmenterOptions
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.*
 import com.facebook.react.uimanager.ViewManager
@@ -227,6 +227,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.ByteOrder
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Duration
@@ -572,13 +573,36 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
   }
 
   @ReactMethod fun segmentWallpaperSubject(path: String, promise: Promise) {
+    // ML Kit's public, on-device segmentation API only separates a PERSON from the
+    // background (selfie/portrait segmentation) -- there is no public "any subject"
+    // cutout API. So the depth effect works best on photos with a person in them;
+    // the per-pixel confidence mask becomes the cut-out subject's alpha channel.
     Thread {
       try {
         val original = BitmapFactory.decodeFile(path) ?: throw IllegalStateException("Could not read the selected image.")
-        val options = SubjectSegmenterOptions.Builder().enableForegroundBitmap().build()
-        val segmenter = SubjectSegmentation.getClient(options)
-        val result: SubjectSegmentationResult = Tasks.await(segmenter.process(InputImage.fromBitmap(original, 0)))
-        val foreground = result.foregroundBitmap ?: throw IllegalStateException("No subject was found in this photo.")
+        val options = SelfieSegmenterOptions.Builder()
+          .setDetectorMode(SelfieSegmenterOptions.SINGLE_IMAGE_MODE)
+          .enableRawSizeMask()
+          .build()
+        val segmenter = Segmentation.getClient(options)
+        val mask: SegmentationMask = Tasks.await(segmenter.process(InputImage.fromBitmap(original, 0)))
+        val maskWidth = mask.width
+        val maskHeight = mask.height
+        val buffer = mask.buffer
+        buffer.order(ByteOrder.nativeOrder())
+        buffer.rewind()
+        val scaledOriginal = Bitmap.createScaledBitmap(original, maskWidth, maskHeight, true)
+        val pixels = IntArray(maskWidth * maskHeight)
+        scaledOriginal.getPixels(pixels, 0, maskWidth, 0, 0, maskWidth, maskHeight)
+        var maxConfidence = 0f
+        for (i in pixels.indices) {
+          val confidence = buffer.float.coerceIn(0f, 1f)
+          if (confidence > maxConfidence) maxConfidence = confidence
+          val alpha = (confidence * 255).toInt()
+          pixels[i] = (alpha shl 24) or (pixels[i] and 0x00FFFFFF)
+        }
+        if (maxConfidence < 0.4f) throw IllegalStateException("No clear subject was found in this photo. Try a photo with a person in it.")
+        val foreground = Bitmap.createBitmap(pixels, maskWidth, maskHeight, Bitmap.Config.ARGB_8888)
         val background = blurredDownscale(original)
         val stamp = System.currentTimeMillis()
         val fgFile = File(reactApplicationContext.cacheDir, "depth_fg_\${stamp}.png")

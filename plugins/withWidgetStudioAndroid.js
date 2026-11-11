@@ -21,6 +21,22 @@ module.exports = function withWidgetStudioAndroid(config) {
     if (!manifest['uses-permission'].some((item) => item.$['android:name'] === 'android.permission.POST_NOTIFICATIONS')) {
       manifest['uses-permission'].push({ $: { 'android:name': 'android.permission.POST_NOTIFICATIONS' } });
     }
+    if (!manifest['uses-permission'].some((item) => item.$['android:name'] === 'android.permission.REQUEST_INSTALL_PACKAGES')) {
+      manifest['uses-permission'].push({ $: { 'android:name': 'android.permission.REQUEST_INSTALL_PACKAGES' } });
+    }
+
+    application.provider = application.provider ?? [];
+    if (!application.provider.some((item) => item.$['android:name'] === 'androidx.core.content.FileProvider')) {
+      application.provider.push({
+        $: {
+          'android:name': 'androidx.core.content.FileProvider',
+          'android:authorities': '${applicationId}.fileprovider',
+          'android:exported': 'false',
+          'android:grantUriPermissions': 'true',
+        },
+        'meta-data': [{ $: { 'android:name': 'android.support.FILE_PROVIDER_PATHS', 'android:resource': '@xml/file_paths' } }],
+      });
+    }
 
     const mainActivity = application.activity?.find((item) => item.$['android:name'] === '.MainActivity');
     if (mainActivity) {
@@ -102,16 +118,26 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
+import androidx.core.content.FileProvider
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.*
 import com.facebook.react.uimanager.ViewManager
+import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 
 const val NOTIFICATION_CHANNEL_ID = "widget_studio_general"
+const val UPDATE_REPO = "chaitanyakreddysomu/widgets-app"
 
 class WidgetStudioNativePackage : ReactPackage {
   override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> = listOf(WidgetStudioNativeModule(context))
@@ -193,6 +219,76 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
       promise.resolve(true)
     } catch (error: Exception) { promise.reject("NOTIFICATION_FAILED", error.message, error) }
   }
+
+  @ReactMethod fun checkForUpdate(promise: Promise) {
+    Thread {
+      try {
+        val url = URL("https://api.github.com/repos/\${UPDATE_REPO}/releases/latest")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.setRequestProperty("Accept", "application/vnd.github+json")
+        connection.connectTimeout = 15000
+        connection.readTimeout = 15000
+        val body = connection.inputStream.bufferedReader().readText()
+        connection.disconnect()
+        val json = JSONObject(body)
+        val tagName = json.optString("tag_name", "")
+        val notes = json.optString("body", "")
+        var downloadUrl: String? = null
+        val assets = json.optJSONArray("assets")
+        if (assets != null) {
+          for (i in 0 until assets.length()) {
+            val asset = assets.getJSONObject(i)
+            if (asset.optString("name").endsWith(".apk")) {
+              downloadUrl = asset.optString("browser_download_url")
+              break
+            }
+          }
+        }
+        val info = reactApplicationContext.packageManager.getPackageInfo(reactApplicationContext.packageName, 0)
+        val currentVersion = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
+        val latestRunNumber = tagName.removePrefix("build-").toLongOrNull()
+        val available = downloadUrl != null && latestRunNumber != null && latestRunNumber > currentVersion
+        val result = Arguments.createMap().apply {
+          putBoolean("available", available)
+          putString("tagName", tagName)
+          putString("notes", notes)
+          putString("downloadUrl", downloadUrl ?: "")
+        }
+        promise.resolve(result)
+      } catch (error: Exception) { promise.reject("UPDATE_CHECK_FAILED", error.message, error) }
+    }.start()
+  }
+
+  @ReactMethod fun downloadAndInstallUpdate(downloadUrl: String, promise: Promise) {
+    Thread {
+      try {
+        val url = URL(downloadUrl)
+        val connection = url.openConnection() as HttpURLConnection
+        connection.connectTimeout = 15000
+        connection.readTimeout = 60000
+        connection.instanceFollowRedirects = true
+        val file = File(reactApplicationContext.cacheDir, "update.apk")
+        connection.inputStream.use { input -> FileOutputStream(file).use { output -> input.copyTo(output) } }
+        connection.disconnect()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !reactApplicationContext.packageManager.canRequestPackageInstalls()) {
+          val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:\${reactApplicationContext.packageName}"))
+          settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+          reactApplicationContext.startActivity(settingsIntent)
+          promise.reject("INSTALL_PERMISSION_NEEDED", "Allow Customize Studio to install unknown apps, then try again.")
+          return@Thread
+        }
+
+        val apkUri = FileProvider.getUriForFile(reactApplicationContext, "\${reactApplicationContext.packageName}.fileprovider", file)
+        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+          setDataAndType(apkUri, "application/vnd.android.package-archive")
+          addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        reactApplicationContext.startActivity(installIntent)
+        promise.resolve(true)
+      } catch (error: Exception) { promise.reject("UPDATE_INSTALL_FAILED", error.message, error) }
+    }.start()
+  }
 }
 `);
     fs.writeFileSync(path.join(sourceDir, 'WidgetStudioTileService.kt'), `package ${packageName}
@@ -262,6 +358,10 @@ class WidgetStudioTileService : TileService() {
     </intent>
   </shortcut>
 </shortcuts>
+`);
+    fs.writeFileSync(path.join(xmlDir, 'file_paths.xml'), `<paths xmlns:android="http://schemas.android.com/apk/res/android">
+  <cache-path name="updates" path="." />
+</paths>
 `);
     for (const fileName of fs.readdirSync(xmlDir).filter((name) => name.endsWith('_info.xml'))) {
       const widgetInfoPath = path.join(xmlDir, fileName);

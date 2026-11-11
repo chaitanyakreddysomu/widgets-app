@@ -171,6 +171,8 @@ type StudioNative = {
   getStorageInfo: () => Promise<StorageInfo>;
   getLaunchShortcutAction: () => Promise<string | null>;
   showStyledNotification: (title: string, message: string, accentColorHex: string) => Promise<boolean>;
+  checkForUpdate: () => Promise<{ available: boolean; tagName: string; notes: string; downloadUrl: string }>;
+  downloadAndInstallUpdate: (downloadUrl: string) => Promise<boolean>;
 };
 const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
 const widgetSlotNames = ['StudioWidget', ...Array.from({ length: 11 }, (_, index) => `StudioWidget${index + 2}`)];
@@ -257,6 +259,8 @@ function WidgetStudio() {
   const [stepGoal, setStepGoal] = useState(10000);
   const [stepStyle, setStepStyle] = useState('Step ring');
   const [buildVersion, setBuildVersion] = useState<string | null>(null);
+  const [updateCheckState, setUpdateCheckState] = useState<'idle' | 'checking' | 'upToDate' | 'available' | 'installing' | 'error'>('idle');
+  const [updateInfo, setUpdateInfo] = useState<{ tagName: string; downloadUrl: string } | null>(null);
   const [section, setSection] = useState<SectionId>('widgets');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [genericTab, setGenericTab] = useState<GenericTabName>('Presets');
@@ -386,6 +390,40 @@ function WidgetStudio() {
       await StudioAndroid.showStyledNotification('Customize Studio', 'This is what a styled notification from your app looks like.', selected.accent);
     } catch {
       Alert.alert('Could not send notification', 'Something went wrong sending the test notification.');
+    }
+  };
+
+  const checkUpdate = async () => {
+    if (Platform.OS !== 'android' || !StudioAndroid) { Alert.alert('Not available', 'Updates are only wired up for Android right now.'); return; }
+    setUpdateCheckState('checking');
+    try {
+      const result = await StudioAndroid.checkForUpdate();
+      if (result.available && result.downloadUrl) {
+        setUpdateInfo({ tagName: result.tagName, downloadUrl: result.downloadUrl });
+        setUpdateCheckState('available');
+      } else {
+        setUpdateInfo(null);
+        setUpdateCheckState('upToDate');
+      }
+    } catch {
+      setUpdateCheckState('error');
+    }
+  };
+
+  const installUpdate = async () => {
+    if (!StudioAndroid || !updateInfo) return;
+    setUpdateCheckState('installing');
+    try {
+      await StudioAndroid.downloadAndInstallUpdate(updateInfo.downloadUrl);
+      setUpdateCheckState('available');
+    } catch (error) {
+      setUpdateCheckState('available');
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('install unknown apps')) {
+        Alert.alert('Allow installs from Customize Studio', 'Turn on "Allow from this source" for Customize Studio, then tap Download & install again.');
+      } else {
+        Alert.alert('Update failed', 'Could not download or install the update. Check your connection and try again.');
+      }
     }
   };
 
@@ -615,6 +653,18 @@ function WidgetStudio() {
             <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Saved design</Text><Text style={styles.controlSub}>{saved ? selected.title : 'No saved widget yet'}</Text></View><Text style={styles.settingsValue}>{saved ? '✓' : '♡'}</Text></View>
             <View style={styles.divider} />
             <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Customize Studio</Text><Text style={styles.controlSub}>Version {buildVersion ?? '1.0.2'}</Text></View><Text style={styles.settingsValue}>✳</Text></View>
+            <View style={styles.divider} />
+            {(updateCheckState === 'available' || updateCheckState === 'installing') && updateInfo ? (
+              <Pressable onPress={installUpdate} disabled={updateCheckState === 'installing'} style={styles.settingsRow}>
+                <View><Text style={styles.controlTitle}>Update available · {updateInfo.tagName}</Text><Text style={styles.controlSub}>{updateCheckState === 'installing' ? 'Downloading…' : 'Tap to download & install'}</Text></View>
+                <Text style={styles.settingsChevron}>›</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={checkUpdate} disabled={updateCheckState === 'checking'} style={styles.settingsRow}>
+                <View><Text style={styles.controlTitle}>Check for updates</Text><Text style={styles.controlSub}>{updateCheckState === 'checking' ? 'Checking…' : updateCheckState === 'upToDate' ? 'You’re on the latest build' : updateCheckState === 'error' ? 'Could not check — tap to retry' : 'Updates install without the Play Store'}</Text></View>
+                <Text style={styles.settingsChevron}>›</Text>
+              </Pressable>
+            )}
           </View>
         )}
         {section === 'widgets' && tab === 'Customize' && <View style={styles.previewShell}>

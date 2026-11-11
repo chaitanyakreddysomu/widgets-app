@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Widget Studio",
+    "name": "Customize Studio",
     "slug": "widget-studio",
     "version": "1.0.2",
     "orientation": "portrait",
@@ -16,7 +16,7 @@
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#10110F"
+        "backgroundColor": "#0E0C16"
       }
     },
     "ios": {

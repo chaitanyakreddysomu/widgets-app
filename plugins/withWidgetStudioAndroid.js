@@ -559,17 +559,14 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
   }
 
   @ReactMethod fun openWallpaperSettings(promise: Promise) {
+    // There is no stable android.provider.Settings action for "wallpaper settings"
+    // across devices (Settings.ACTION_WALLPAPER_SETTINGS does not exist). The
+    // platform-wide way to open the system's wallpaper picker is ACTION_SET_WALLPAPER.
     try {
-      val intent = Intent(Settings.ACTION_WALLPAPER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      val intent = Intent(Intent.ACTION_SET_WALLPAPER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       reactApplicationContext.startActivity(intent)
       promise.resolve(true)
-    } catch (error: Exception) {
-      try {
-        val fallback = Intent(Intent.ACTION_SET_WALLPAPER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        reactApplicationContext.startActivity(fallback)
-        promise.resolve(true)
-      } catch (fallbackError: Exception) { promise.reject("SETTINGS_UNAVAILABLE", fallbackError.message, fallbackError) }
-    }
+    } catch (error: Exception) { promise.reject("SETTINGS_UNAVAILABLE", error.message, error) }
   }
 
   @ReactMethod fun segmentWallpaperSubject(path: String, promise: Promise) {

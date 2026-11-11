@@ -187,6 +187,7 @@ type StudioNative = {
   segmentWallpaperSubject: (path: string) => Promise<{ foregroundPath: string; backgroundPath: string }>;
   setDepthWallpaperConfig: (foregroundPath: string, backgroundPath: string, config: DepthWallpaperConfig) => Promise<boolean>;
   openDepthWallpaperPicker: () => Promise<boolean>;
+  renderDepthSnapshot: (foregroundPath: string, backgroundPath: string, config: DepthWallpaperConfig) => Promise<string>;
 };
 const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
 const depthClockFonts = ['Sans', 'Serif', 'Monospace', 'Condensed', 'Light'] as const;
@@ -331,6 +332,8 @@ function WidgetStudio() {
   const [depthClockPos, setDepthClockPos] = useState<DepthOverlayPos>(defaultDepthClockPos);
   const [depthDatePos, setDepthDatePos] = useState<DepthOverlayPos>(defaultDepthDatePos);
   const [depthPreviewSize, setDepthPreviewSize] = useState({ width: 0, height: 0 });
+  const [depthApplyTarget, setDepthApplyTarget] = useState<'home' | 'lock' | 'both'>('home');
+  const [depthApplying, setDepthApplying] = useState(false);
   const [section, setSection] = useState<SectionId>('widgets');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [genericTab, setGenericTab] = useState<GenericTabName>('Presets');
@@ -600,15 +603,27 @@ function WidgetStudio() {
 
   const applyDepthWallpaper = async () => {
     if (!StudioAndroid || !depthLayers) return;
+    const config: DepthWallpaperConfig = {
+      clockEnabled: depthClockEnabled, clockFont: depthClockFont, clockBehindSubject: depthClockBehindSubject, clockSize: depthClockSize / 100,
+      clockX: depthClockPos.x, clockY: depthClockPos.y, showDate: depthShowDate, dateFont: depthDateFont, dateFormat: depthDateFormat,
+      dateX: depthDatePos.x, dateY: depthDatePos.y,
+    };
+    setDepthApplying(true);
     try {
-      await StudioAndroid.setDepthWallpaperConfig(depthLayers.foregroundPath, depthLayers.backgroundPath, {
-        clockEnabled: depthClockEnabled, clockFont: depthClockFont, clockBehindSubject: depthClockBehindSubject, clockSize: depthClockSize / 100,
-        clockX: depthClockPos.x, clockY: depthClockPos.y, showDate: depthShowDate, dateFont: depthDateFont, dateFormat: depthDateFormat,
-        dateX: depthDatePos.x, dateY: depthDatePos.y,
-      });
-      await StudioAndroid.openDepthWallpaperPicker();
+      if (depthApplyTarget === 'lock' || depthApplyTarget === 'both') {
+        const snapshotPath = await StudioAndroid.renderDepthSnapshot(depthLayers.foregroundPath, depthLayers.backgroundPath, config);
+        await StudioAndroid.setWallpaperFromPath(snapshotPath, 'lock');
+      }
+      if (depthApplyTarget === 'home' || depthApplyTarget === 'both') {
+        await StudioAndroid.setDepthWallpaperConfig(depthLayers.foregroundPath, depthLayers.backgroundPath, config);
+        await StudioAndroid.openDepthWallpaperPicker();
+      } else {
+        Alert.alert('Lock screen updated', 'Your customized design is now your lock screen wallpaper. Live tilt motion only works on the home screen — Android doesn’t let apps animate behind the lock screen.');
+      }
     } catch {
-      Alert.alert('Could not open live wallpaper picker', 'Try again from Settings > Wallpaper.');
+      Alert.alert('Could not apply wallpaper', 'Try again from Settings > Wallpaper.');
+    } finally {
+      setDepthApplying(false);
     }
   };
 
@@ -923,8 +938,21 @@ function WidgetStudio() {
                     <Text style={[styles.controlTitle, { marginTop: 10 }]}>Date format</Text>
                     <OptionPicker options={[...depthDateFormats]} value={depthDateFormat} onSelect={(value) => setDepthDateFormat(value as DepthDateFormat)} />
                   </>}
-                  <Pressable onPress={applyDepthWallpaper} style={[styles.addHomeButton, { marginTop: 12 }]}>
-                    <Text style={styles.addHomeIcon}>▶</Text><View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>Set as live wallpaper</Text></View><Text style={styles.addHomeArrow}>↗</Text>
+                  <Text style={[styles.controlTitle, { marginTop: 14 }]}>Apply to</Text>
+                  <OptionPicker
+                    options={['Home screen', 'Lock screen', 'Both']}
+                    value={depthApplyTarget === 'home' ? 'Home screen' : depthApplyTarget === 'lock' ? 'Lock screen' : 'Both'}
+                    onSelect={(value) => setDepthApplyTarget(value === 'Home screen' ? 'home' : value === 'Lock screen' ? 'lock' : 'both')}
+                  />
+                  <Text style={[styles.controlSub, { marginTop: 6 }]}>
+                    {depthApplyTarget === 'home'
+                      ? 'The home screen gets the full live effect — tilt and swipe parallax.'
+                      : depthApplyTarget === 'lock'
+                        ? 'Android can’t animate a live wallpaper behind the lock screen, so it gets a still snapshot of this exact same design.'
+                        : 'Home screen gets the live, moving version. Lock screen gets a still snapshot of this same design — Android doesn’t allow live wallpapers behind the lock screen.'}
+                  </Text>
+                  <Pressable onPress={applyDepthWallpaper} disabled={depthApplying} style={[styles.addHomeButton, { marginTop: 12 }]}>
+                    <Text style={styles.addHomeIcon}>▶</Text><View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>{depthApplying ? 'Applying…' : depthApplyTarget === 'home' ? 'Set as live wallpaper' : depthApplyTarget === 'lock' ? 'Set lock screen wallpaper' : 'Set both wallpapers'}</Text></View><Text style={styles.addHomeArrow}>↗</Text>
                   </Pressable>
                 </>}
               </View>

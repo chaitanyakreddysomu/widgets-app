@@ -198,7 +198,9 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -230,7 +232,9 @@ import java.net.URL
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import org.json.JSONObject
 
 const val NOTIFICATION_CHANNEL_ID = "widget_studio_general"
@@ -274,6 +278,34 @@ private fun blurredDownscale(bitmap: Bitmap): Bitmap {
   val smallHeight = (bitmap.height / 16).coerceAtLeast(1)
   val small = Bitmap.createScaledBitmap(bitmap, smallWidth, smallHeight, true)
   return Bitmap.createScaledBitmap(small, bitmap.width, bitmap.height, true)
+}
+
+private fun depthTypefaceFor(name: String): Typeface = when (name) {
+  "Serif" -> Typeface.create(Typeface.SERIF, Typeface.BOLD)
+  "Monospace" -> Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+  "Condensed" -> Typeface.create("sans-serif-condensed", Typeface.BOLD)
+  "Light" -> Typeface.create("sans-serif-light", Typeface.NORMAL)
+  else -> Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+}
+
+private fun depthDateFormatterFor(id: String): DateTimeFormatter = when (id) {
+  "dd/mm/yy" -> DateTimeFormatter.ofPattern("dd/MM/yy")
+  "dd-MMM-yyyy" -> DateTimeFormatter.ofPattern("dd - MMM- yyyy")
+  "dd MMMM" -> DateTimeFormatter.ofPattern("dd MMMM")
+  "dd MMMM yyyy" -> DateTimeFormatter.ofPattern("dd MMMM yyyy")
+  "mm/dd/yyyy" -> DateTimeFormatter.ofPattern("MM/dd/yyyy")
+  else -> DateTimeFormatter.ofPattern("dd/MM/yyyy")
+}
+
+private fun drawDepthLayer(canvas: Canvas, bitmap: Bitmap, paint: Paint) {
+  val canvasWidth = canvas.width.toFloat()
+  val canvasHeight = canvas.height.toFloat()
+  val scale = maxOf(canvasWidth / bitmap.width, canvasHeight / bitmap.height)
+  val scaledWidth = bitmap.width * scale
+  val scaledHeight = bitmap.height * scale
+  val left = (canvasWidth - scaledWidth) / 2f
+  val top = (canvasHeight - scaledHeight) / 2f
+  canvas.drawBitmap(bitmap, null, RectF(left, top, left + scaledWidth, top + scaledHeight), paint)
 }
 
 class WidgetStudioNativePackage : ReactPackage {
@@ -580,6 +612,58 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
         .apply()
       promise.resolve(true)
     } catch (error: Exception) { promise.reject("DEPTH_SAVE_FAILED", error.message, error) }
+  }
+
+  @ReactMethod fun renderDepthSnapshot(foregroundPath: String, backgroundPath: String, config: ReadableMap, promise: Promise) {
+    // Android has no public API to run a live wallpaper behind the lock screen --
+    // that surface only ever shows a static bitmap. This renders one still frame
+    // of the exact same composition (same position/size/font/behind-subject state)
+    // so the lock screen matches what the live home-screen wallpaper looks like.
+    Thread {
+      try {
+        val background = BitmapFactory.decodeFile(backgroundPath) ?: throw IllegalStateException("Missing background layer.")
+        val foreground = BitmapFactory.decodeFile(foregroundPath)
+        val manager = WallpaperManager.getInstance(reactApplicationContext)
+        val width = manager.desiredMinimumWidth.takeIf { it > 0 } ?: background.width
+        val height = manager.desiredMinimumHeight.takeIf { it > 0 } ?: background.height
+        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val layerPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        val clockEnabled = config.getBoolean("clockEnabled")
+        val clockBehindSubject = config.getBoolean("clockBehindSubject")
+        val clockSize = config.getDouble("clockSize").toFloat()
+        val showDate = config.getBoolean("showDate")
+        val clockPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+          color = Color.WHITE; textAlign = Paint.Align.CENTER
+          typeface = depthTypefaceFor(config.getString("clockFont") ?: "Sans")
+          textSize = height * 0.09f * clockSize
+        }
+        val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+          color = Color.WHITE; textAlign = Paint.Align.CENTER
+          typeface = depthTypefaceFor(config.getString("dateFont") ?: "Sans")
+          textSize = height * 0.032f * clockSize
+        }
+        val dateFormatter = depthDateFormatterFor(config.getString("dateFormat") ?: "dd/mm/yyyy")
+
+        fun drawClock() = canvas.drawText(LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm")), config.getDouble("clockX").toFloat() * width, config.getDouble("clockY").toFloat() * height, clockPaint)
+        fun drawDate() = canvas.drawText(LocalDate.now().format(dateFormatter), config.getDouble("dateX").toFloat() * width, config.getDouble("dateY").toFloat() * height, datePaint)
+
+        drawDepthLayer(canvas, background, layerPaint)
+        if (clockBehindSubject) {
+          if (clockEnabled) drawClock()
+          if (showDate) drawDate()
+        }
+        if (foreground != null) drawDepthLayer(canvas, foreground, layerPaint)
+        if (!clockBehindSubject) {
+          if (clockEnabled) drawClock()
+          if (showDate) drawDate()
+        }
+
+        val file = File(reactApplicationContext.cacheDir, "depth_snapshot_\${System.currentTimeMillis()}.png")
+        FileOutputStream(file).use { output.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        promise.resolve(file.absolutePath)
+      } catch (error: Exception) { promise.reject("SNAPSHOT_FAILED", error.message, error) }
+    }.start()
   }
 
   @ReactMethod fun openDepthWallpaperPicker(promise: Promise) {

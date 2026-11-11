@@ -3,11 +3,22 @@ import {
   Alert, Animated, Easing, Modal, Platform, StatusBar, TextInput, View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Calendar from 'expo-calendar';
-import * as Battery from 'expo-battery';
-import { Paths } from 'expo-file-system';
+import LinearGradient from 'react-native-linear-gradient';
+import RNCalendarEvents from 'react-native-calendar-events';
+import DeviceInfo from 'react-native-device-info';
 import { NativeModules } from 'react-native';
+
+type CalendarEvent = { id: string; title: string; startDate: string };
+const Calendar = {
+  getCalendars: async () => RNCalendarEvents.findCalendars(),
+  listEvents: async (calendars: { id: string }[], from: Date, to: Date): Promise<CalendarEvent[]> =>
+    RNCalendarEvents.fetchAllEvents(from.toISOString(), to.toISOString(), calendars.map((item) => item.id)),
+  getCalendarPermissions: async () => ({ granted: (await RNCalendarEvents.checkPermissions()) === 'authorized' }),
+  requestCalendarPermissions: async () => ({ granted: (await RNCalendarEvents.requestPermissions()) === 'authorized' }),
+};
+const Battery = {
+  getBatteryLevelAsync: async () => DeviceInfo.getBatteryLevel(),
+};
 
 type Widget = { id: string; title: string; subtitle: string; type: string; icon: string; accent: string; label: string; style: string };
 const analogFaces = ['Classic numerals', 'Minimal ticks', 'Full numerals', 'Dot markers', 'Heart markers', 'Skeleton', 'Roman numerals', 'Railway markers', '24-hour numerals', 'Sector dial', 'Bauhaus', 'California dial', 'Pilot Type A', 'Pilot Type B', 'Regulator', 'Chronograph'];
@@ -157,8 +168,8 @@ function WidgetStudio() {
   const [saved, setSaved] = useState(false);
   const [widgetSheetVisible, setWidgetSheetVisible] = useState(false);
   const [eventPickerVisible, setEventPickerVisible] = useState(false);
-  const [calendarEvents, setCalendarEvents] = useState<Calendar.ExpoCalendarEvent[]>([]);
-  const [calendarEvent, setCalendarEvent] = useState<Calendar.ExpoCalendarEvent | null>(null);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null);
   const [calendarGranted, setCalendarGranted] = useState(false);
   const [clockMode, setClockMode] = useState('Analog');
   const [timeFormat, setTimeFormat] = useState<'12-hour' | '24-hour'>('12-hour');
@@ -230,7 +241,7 @@ function WidgetStudio() {
 
   const loadCalendarEvents = async () => {
     try {
-      const calendarsOnDevice = await Calendar.getCalendars(Calendar.EntityTypes.EVENT);
+      const calendarsOnDevice = await Calendar.getCalendars();
       const from = new Date();
       const to = new Date();
       to.setDate(to.getDate() + 30);
@@ -277,9 +288,8 @@ function WidgetStudio() {
       } catch { }
     } else if (widget.id === 'storage') {
       try {
-        const storage = Platform.OS === 'android' && StudioAndroid
-          ? await StudioAndroid.getStorageInfo()
-          : { totalBytes: Paths.totalDiskSpace, availableBytes: Paths.availableDiskSpace, usedBytes: Math.max(0, Paths.totalDiskSpace - Paths.availableDiskSpace) };
+        if (Platform.OS !== 'android' || !StudioAndroid) return {};
+        const storage = await StudioAndroid.getStorageInfo();
         const total = storage.totalBytes;
         const available = storage.availableBytes;
         const used = storage.usedBytes;

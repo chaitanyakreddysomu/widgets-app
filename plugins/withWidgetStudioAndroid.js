@@ -1,4 +1,4 @@
-const { withAndroidManifest, withMainApplication, withMainActivity, withStringsXml, withAppBuildGradle, withDangerousMod } = require('@expo/config-plugins');
+const { withAndroidManifest, withMainApplication, withMainActivity, withStringsXml, withAppBuildGradle, withProjectBuildGradle, withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -12,6 +12,19 @@ function ensureString(mod, name, value) {
 module.exports = function withWidgetStudioAndroid(config) {
   if (process.env.GITHUB_RUN_NUMBER) config.android.versionCode = Number(process.env.GITHUB_RUN_NUMBER);
 
+  // Health Connect requires API 26+. ext.minSdkVersion must be set before the
+  // expo-root-project plugin applies its own default (24), since it only sets
+  // the value when it isn't already present on rootProject.ext.
+  config = withProjectBuildGradle(config, (mod) => {
+    if (!mod.modResults.contents.includes("ext.minSdkVersion")) {
+      mod.modResults.contents = mod.modResults.contents.replace(
+        /(apply plugin: "expo-root-project")/,
+        'ext.minSdkVersion = 26\n\n$1',
+      );
+    }
+    return mod;
+  });
+
   config = withAndroidManifest(config, (mod) => {
     const application = mod.modResults.manifest.application[0];
     application.$['android:usesCleartextTraffic'] ??= 'false';
@@ -23,6 +36,18 @@ module.exports = function withWidgetStudioAndroid(config) {
     }
     if (!manifest['uses-permission'].some((item) => item.$['android:name'] === 'android.permission.REQUEST_INSTALL_PACKAGES')) {
       manifest['uses-permission'].push({ $: { 'android:name': 'android.permission.REQUEST_INSTALL_PACKAGES' } });
+    }
+    for (const healthPermission of ['android.permission.health.READ_STEPS', 'android.permission.health.READ_SLEEP']) {
+      if (!manifest['uses-permission'].some((item) => item.$['android:name'] === healthPermission)) {
+        manifest['uses-permission'].push({ $: { 'android:name': healthPermission } });
+      }
+    }
+
+    manifest.queries = manifest.queries ?? [{}];
+    const queries = manifest.queries[0];
+    queries.package = queries.package ?? [];
+    if (!queries.package.some((item) => item.$['android:name'] === 'com.google.android.apps.healthdata')) {
+      queries.package.push({ $: { 'android:name': 'com.google.android.apps.healthdata' } });
     }
 
     application.provider = application.provider ?? [];
@@ -44,6 +69,21 @@ module.exports = function withWidgetStudioAndroid(config) {
       if (!mainActivity['meta-data'].some((item) => item.$['android:resource'] === '@xml/shortcuts')) {
         mainActivity['meta-data'].push({ $: { 'android:name': 'android.app.shortcuts', 'android:resource': '@xml/shortcuts' } });
       }
+    }
+
+    application['activity-alias'] = application['activity-alias'] ?? [];
+    if (!application['activity-alias'].some((item) => item.$['android:name'] === '.HealthPermissionsRationaleActivity')) {
+      application['activity-alias'].push({
+        $: {
+          'android:name': '.HealthPermissionsRationaleActivity',
+          'android:exported': 'true',
+          'android:targetActivity': '.MainActivity',
+        },
+        'intent-filter': [{
+          action: [{ $: { 'android:name': 'android.intent.action.VIEW_PERMISSION_USAGE' } }],
+          category: [{ $: { 'android:name': 'android.intent.category.HEALTH_PERMISSIONS' } }],
+        }],
+      });
     }
 
     application.service = application.service ?? [];
@@ -76,7 +116,7 @@ module.exports = function withWidgetStudioAndroid(config) {
     if (!mod.modResults.contents.includes('androidx.core:core-ktx')) {
       mod.modResults.contents = mod.modResults.contents.replace(
         /(implementation\("com\.facebook\.react:react-android"\))/,
-        '$1\n    implementation("androidx.core:core-ktx:1.13.1")',
+        '$1\n    implementation("androidx.core:core-ktx:1.13.1")\n    implementation("androidx.health.connect:connect-client:1.1.0")\n    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")',
       );
     }
     return mod;
@@ -103,6 +143,16 @@ module.exports = function withWidgetStudioAndroid(config) {
         `$1\n  override fun onNewIntent(intent: Intent) {\n    super.onNewIntent(intent)\n    setIntent(intent)\n  }\n`,
       );
     }
+    if (!mod.modResults.contents.includes('healthPermissionLauncher')) {
+      mod.modResults.contents = mod.modResults.contents.replace(
+        /(import expo\.modules\.ReactActivityDelegateWrapper\n)/,
+        `$1\nimport androidx.health.connect.client.PermissionController\n`,
+      );
+      mod.modResults.contents = mod.modResults.contents.replace(
+        /(class MainActivity : ReactActivity\(\) \{\n)/,
+        `$1\n  private val healthPermissionLauncher = registerForActivityResult(\n    PermissionController.createRequestPermissionResultContract()\n  ) { granted ->\n    val promise = HealthPermissionBridge.pendingPromise\n    val required = HealthPermissionBridge.requiredPermissions\n    HealthPermissionBridge.pendingPromise = null\n    promise?.resolve(required.isNotEmpty() && granted.containsAll(required))\n  }\n\n  fun launchHealthPermissionRequest(permissions: Set<String>) {\n    healthPermissionLauncher.launch(permissions)\n  }\n`,
+      );
+    }
     return mod;
   });
 
@@ -127,17 +177,35 @@ import android.os.StatFs
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.records.SleepSessionRecord
+import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.request.AggregateRequest
+import androidx.health.connect.client.request.ReadRecordsRequest
+import androidx.health.connect.client.time.TimeRangeFilter
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.*
 import com.facebook.react.uimanager.ViewManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import org.json.JSONObject
 
 const val NOTIFICATION_CHANNEL_ID = "widget_studio_general"
 const val UPDATE_REPO = "chaitanyakreddysomu/widgets-app"
+
+object HealthPermissionBridge {
+  var pendingPromise: Promise? = null
+  var requiredPermissions: Set<String> = emptySet()
+}
 
 class WidgetStudioNativePackage : ReactPackage {
   override fun createNativeModules(context: ReactApplicationContext): List<NativeModule> = listOf(WidgetStudioNativeModule(context))
@@ -288,6 +356,61 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
         promise.resolve(true)
       } catch (error: Exception) { promise.reject("UPDATE_INSTALL_FAILED", error.message, error) }
     }.start()
+  }
+
+  @ReactMethod fun isHealthConnectAvailable(promise: Promise) {
+    try {
+      val status = HealthConnectClient.getSdkStatus(reactApplicationContext)
+      promise.resolve(status == HealthConnectClient.SDK_AVAILABLE)
+    } catch (error: Exception) { promise.reject("HEALTH_STATUS_FAILED", error.message, error) }
+  }
+
+  @ReactMethod fun requestHealthPermissions(permissions: ReadableArray, promise: Promise) {
+    val activity = reactApplicationContext.currentActivity as? MainActivity
+    if (activity == null) { promise.reject("NO_ACTIVITY", "Bring Customize Studio to the foreground and try again."); return }
+    val permissionSet = permissions.toArrayList().map { it.toString() }.toSet()
+    CoroutineScope(Dispatchers.IO).launch {
+      try {
+        val client = HealthConnectClient.getOrCreate(reactApplicationContext)
+        val granted = client.permissionController.getGrantedPermissions()
+        if (granted.containsAll(permissionSet)) { promise.resolve(true); return@launch }
+        HealthPermissionBridge.pendingPromise = promise
+        HealthPermissionBridge.requiredPermissions = permissionSet
+        activity.runOnUiThread { activity.launchHealthPermissionRequest(permissionSet) }
+      } catch (error: Exception) { promise.reject("HEALTH_PERMISSION_FAILED", error.message, error) }
+    }
+  }
+
+  @ReactMethod fun getStepsToday(promise: Promise) {
+    CoroutineScope(Dispatchers.IO).launch {
+      try {
+        val client = HealthConnectClient.getOrCreate(reactApplicationContext)
+        val now = Instant.now()
+        val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()
+        val response = client.aggregate(
+          AggregateRequest(
+            metrics = setOf(StepsRecord.COUNT_TOTAL),
+            timeRangeFilter = TimeRangeFilter.between(startOfDay, now),
+          )
+        )
+        promise.resolve((response[StepsRecord.COUNT_TOTAL] ?: 0L).toString())
+      } catch (error: Exception) { promise.reject("STEPS_FAILED", error.message, error) }
+    }
+  }
+
+  @ReactMethod fun getSleepLastNight(promise: Promise) {
+    CoroutineScope(Dispatchers.IO).launch {
+      try {
+        val client = HealthConnectClient.getOrCreate(reactApplicationContext)
+        val now = Instant.now()
+        val from = now.minus(Duration.ofDays(1))
+        val records = client.readRecords(
+          ReadRecordsRequest(SleepSessionRecord::class, timeRangeFilter = TimeRangeFilter.between(from, now))
+        ).records
+        val totalMinutes = records.sumOf { Duration.between(it.startTime, it.endTime).toMinutes() }
+        promise.resolve(totalMinutes.toString())
+      } catch (error: Exception) { promise.reject("SLEEP_FAILED", error.message, error) }
+    }
   }
 }
 `);

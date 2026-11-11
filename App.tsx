@@ -59,14 +59,16 @@ const makeClockWidgets = (face: string, index: number, analog: boolean): Widget 
 const widgets: Widget[] = [
   ...analogFaces.map((face, index) => makeClockWidgets(face, index, true)),
   ...digitalFaces.map((face, index) => makeClockWidgets(face, index, false)),
+  { id: 'health-sleep', title: 'Sleep Summary', subtitle: 'Last night’s sleep from Health Connect', type: 'Health', icon: '☾', accent: '#B8A5FF', label: '7h 42m', style: 'Sleep summary' },
+  ...['Step ring', 'Daily goal', 'Weekly bars', 'Simple count'].map((style, index) => ({ id: `health-steps-${index + 1}`, title: `Steps · ${style}`, subtitle: 'A sample of today’s activity', type: 'Health', icon: '⌁', accent: '#88D5C3', label: ['8,420', '8,420 / 10k', 'Mon  Tue  Wed', '8,420 steps'][index], style })),
   { id: 'weather', title: 'Daylight', subtitle: 'A little forecast, a lot of sky', type: 'Weather', icon: '☀', accent: '#D8B8FF', label: '24°', style: 'Current weather' },
   { id: 'battery', title: 'Power Check', subtitle: 'Your current battery level', type: 'Battery', icon: '▰', accent: '#8C6CFF', label: '82%', style: 'Battery level' },
   { id: 'calendar', title: 'One Thing Today', subtitle: 'Choose one event from your calendar', type: 'Calendar', icon: '▦', accent: '#88D5C3', label: '10:30 · Design review', style: 'Selected event' },
   { id: 'music', title: 'Now Playing', subtitle: 'A compact music widget', type: 'Music', icon: '♫', accent: '#FFAE91', label: 'Midnight City', style: 'Now playing' },
   { id: 'storage', title: 'Space Check', subtitle: 'Used, available, and total storage', type: 'Storage', icon: '◫', accent: '#85C8E8', label: '76% used', style: 'Storage overview' },
 ];
-const categories = ['All widgets', 'Clock Analog', 'Clock Digital', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage'];
-const widgetTypes = ['Clock', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage', 'Text'];
+const categories = ['All widgets', 'Clock Analog', 'Clock Digital', 'Health', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage'];
+const widgetTypes = ['Clock', 'Health', 'Weather', 'Battery', 'Calendar', 'Music', 'Storage', 'Text'];
 const scratchWidget: Widget = { id: 'custom', title: 'Your widget', subtitle: 'Start with a blank canvas', type: 'Custom', icon: '✦', accent: '#8C6CFF', label: 'Make it yours', style: 'Blank' };
 const tabs = [
   { name: 'Widgets', icon: '▦' },
@@ -173,6 +175,10 @@ type StudioNative = {
   showStyledNotification: (title: string, message: string, accentColorHex: string) => Promise<boolean>;
   checkForUpdate: () => Promise<{ available: boolean; tagName: string; notes: string; downloadUrl: string }>;
   downloadAndInstallUpdate: (downloadUrl: string) => Promise<boolean>;
+  isHealthConnectAvailable: () => Promise<boolean>;
+  requestHealthPermissions: (permissions: string[]) => Promise<boolean>;
+  getStepsToday: () => Promise<string>;
+  getSleepLastNight: () => Promise<string>;
 };
 const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
 const widgetSlotNames = ['StudioWidget', ...Array.from({ length: 11 }, (_, index) => `StudioWidget${index + 2}`)];
@@ -245,6 +251,7 @@ function WidgetStudio() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null);
   const [calendarGranted, setCalendarGranted] = useState(false);
+  const [healthRequested, setHealthRequested] = useState<Record<string, boolean>>({});
   const [clockMode, setClockMode] = useState('Analog');
   const [timeFormat, setTimeFormat] = useState<'12-hour' | '24-hour'>('12-hour');
   const [showSeconds, setShowSeconds] = useState(true);
@@ -377,6 +384,42 @@ function WidgetStudio() {
     if (await ensureCalendarAccess()) await loadCalendarEvents();
   };
 
+  const ensureHealthAccess = async (widget: Widget): Promise<boolean> => {
+    if (Platform.OS !== 'android' || !StudioAndroid) {
+      Alert.alert('Not available', 'Health data is only wired up for Android right now.');
+      return false;
+    }
+    const isSteps = widget.id.includes('steps') || (widget.id === 'custom' && widget.type === 'Health' && widget.style.startsWith('Step'));
+    const permission = isSteps ? 'android.permission.health.READ_STEPS' : 'android.permission.health.READ_SLEEP';
+    const label = isSteps ? 'today’s steps' : 'sleep data';
+    try {
+      const available = await StudioAndroid.isHealthConnectAvailable();
+      if (!available) {
+        Alert.alert('Health Connect needed', 'Install the Health Connect app, then share Steps and Sleep data from Samsung Health or your fitness app into it. The widget will show sample data until then.');
+        return false;
+      }
+      if (!healthRequested[widget.id]) {
+        const proceed = await askBeforeSystemPermission(
+          `Allow ${label}?`,
+          `Customize Studio needs read access to ${label} through Health Connect for this widget. It will not write health records.`,
+        );
+        if (!proceed) return false;
+        const granted = await StudioAndroid.requestHealthPermissions([permission]);
+        setHealthRequested((current) => ({ ...current, [widget.id]: true }));
+        if (!granted) {
+          Alert.alert('Health access not allowed', 'Enable this permission for Customize Studio in Health Connect settings to show live data. The widget will show sample data until then.');
+          return false;
+        }
+      }
+    } catch {
+      Alert.alert('Health Connect unavailable', 'Could not reach Health Connect. The widget will show sample data.');
+      return false;
+    }
+    const liveData = await refreshSelectedData(widget);
+    setSelected((current) => current.id === widget.id ? { ...current, ...liveData } : current);
+    return true;
+  };
+
   const sendTestNotification = async () => {
     if (Platform.OS !== 'android' || !StudioAndroid) { Alert.alert('Not available', 'Notifications are only wired up for Android right now.'); return; }
     try {
@@ -441,6 +484,18 @@ function WidgetStudio() {
         const available = storage.availableBytes;
         const used = storage.usedBytes;
         return { label: `${formatBytes(used)} used`, subtitle: `${formatBytes(available)} free of ${formatBytes(total)}` };
+      } catch { }
+    } else if (widget.id.includes('steps') || (widget.id === 'custom' && widget.type === 'Health' && widget.style.startsWith('Step'))) {
+      try {
+        if (Platform.OS !== 'android' || !StudioAndroid) return {};
+        const steps = await StudioAndroid.getStepsToday();
+        return { label: `${Number(steps).toLocaleString()} steps` };
+      } catch { }
+    } else if (widget.id === 'health-sleep') {
+      try {
+        if (Platform.OS !== 'android' || !StudioAndroid) return {};
+        const minutes = Number(await StudioAndroid.getSleepLastNight());
+        return { label: minutes ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : 'No sleep data' };
       } catch { }
     }
     return {};
@@ -524,6 +579,7 @@ function WidgetStudio() {
       void refreshSelectedData(widget).then((liveData) => setSelected((current) => current.id === widget.id ? { ...current, ...liveData } : current));
     }
     if (widget.id === 'calendar') void openCalendarPicker();
+    if (widget.type === 'Health') void ensureHealthAccess(widget);
   };
   const startFromScratch = () => {
     setSelected(scratchWidget);
@@ -559,6 +615,7 @@ function WidgetStudio() {
     setTimeout(addToHomeScreen, 300);
   };
   const addToHomeScreen = async () => {
+    if (selected.type === 'Health' && !(await ensureHealthAccess(selected))) return;
     if (selected.type === 'Calendar') {
       if (!(await ensureCalendarAccess())) return;
       if (!calendarEvent) {
@@ -758,6 +815,16 @@ function WidgetStudio() {
                 <Text style={styles.controlSub}>{calendarEvent ? `${calendarEvent.title} · ${formatEventDate(calendarEvent.startDate)}` : 'Choose one event to show on this widget.'}</Text>
                 <Text style={styles.calendarPickButton}>Choose event  ›</Text>
               </Pressable>}
+              {selected.type === 'Health' && selected.style !== 'Sleep summary' && <View style={styles.customCard}>
+                <Text style={styles.controlTitle}>Steps display</Text><Text style={styles.controlSub}>Choose how today's steps are shown.</Text>
+                <OptionPicker options={['Step ring', 'Daily goal', 'Weekly bars', 'Simple count']} value={stepStyle} onSelect={(value) => { setStepStyle(value); setSelected((current) => ({ ...current, style: value })); }} />
+                {(stepStyle === 'Daily goal' || selected.style === 'Daily goal') && <StepperControl label="Daily goal" value={stepGoal} unit=" steps" min={1000} max={30000} step={500} onChange={setStepGoal} />}
+                <View style={styles.note}><Text style={styles.noteIcon}>⌁</Text><Text style={styles.noteText}>Reads today's step count from Health Connect. Needs the Health Connect app with step data shared from Samsung Health or another fitness app.</Text></View>
+              </View>}
+              {selected.type === 'Health' && selected.style === 'Sleep summary' && <View style={styles.customCard}>
+                <Text style={styles.controlTitle}>Sleep summary</Text><Text style={styles.controlSub}>Shows last night's total sleep time.</Text>
+                <View style={styles.note}><Text style={styles.noteIcon}>☾</Text><Text style={styles.noteText}>Reads last night's sleep from Health Connect. Needs the Health Connect app with sleep data shared from Samsung Health or another sleep tracker.</Text></View>
+              </View>}
               {selected.type === 'Weather' && <View style={styles.customCard}><Text style={styles.controlTitle}>Forecast layout</Text><Text style={styles.controlSub}>Choose how much weather to show.</Text><OptionPicker options={['Current conditions', 'Hourly forecast', 'Three-day forecast']} value={selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value, label: value === 'Hourly forecast' ? '24°  25°  23°' : value === 'Three-day forecast' ? 'Today 24° · Sat 26°' : '24°' }))} /></View>}
               {selected.type === 'Battery' && <View style={styles.customCard}><Text style={styles.controlTitle}>Battery display</Text><Text style={styles.controlSub}>Choose the battery detail to emphasize.</Text><OptionPicker options={['Ring percentage', 'Compact percentage', 'Remaining time']} value={selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value, label: value === 'Remaining time' ? '3h 14m left' : '82%' }))} /></View>}
               {selected.type === 'Calendar' && <View style={styles.customCard}><Text style={styles.controlTitle}>Calendar layout</Text><Text style={styles.controlSub}>Show the month or focus on your selected event.</Text><OptionPicker options={['Monthly calendar', 'Next event', 'Agenda list']} value={selected.style} onSelect={(value) => setSelected((current) => ({ ...current, style: value }))} /></View>}

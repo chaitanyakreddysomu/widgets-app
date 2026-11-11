@@ -71,10 +71,79 @@ const scratchWidget: Widget = { id: 'custom', title: 'Your widget', subtitle: 'S
 const tabs = [
   { name: 'Widgets', icon: '▦' },
   { name: 'Customize', icon: '☷' },
-  { name: 'Device', icon: '◈' },
   { name: 'Settings', icon: '⚙︎' },
 ] as const;
 type TabName = (typeof tabs)[number]['name'];
+const genericTabs = [
+  { name: 'Presets', icon: '▦' },
+  { name: 'Customize', icon: '☷' },
+  { name: 'Settings', icon: '⚙︎' },
+] as const;
+type GenericTabName = (typeof genericTabs)[number]['name'];
+const sections = [
+  { id: 'widgets', label: 'Widgets', icon: '▦' },
+  { id: 'icons', label: 'App icons / icon packs', icon: '◉' },
+  { id: 'quicktile', label: 'Quick settings tiles', icon: '▣' },
+  { id: 'notifications', label: 'Notification look', icon: '◔' },
+  { id: 'wallpapers', label: 'Wallpapers', icon: '◧' },
+  { id: 'keyboard', label: 'Keyboard', icon: '⌨' },
+  { id: 'shortcuts', label: 'App shortcuts', icon: '↗' },
+  { id: 'fonts', label: 'Fonts', icon: 'Aa' },
+  { id: 'edgepanel', label: 'Edge panel-style popups', icon: '◖' },
+] as const;
+type SectionId = (typeof sections)[number]['id'];
+type SectionCopy = { blurb: string; presets: string; customize: string; settings: string; settingsAction?: 'notification' };
+const sectionCopy: Record<Exclude<SectionId, 'widgets'>, SectionCopy> = {
+  icons: {
+    blurb: 'Themed app icon sets that other launchers can pick up.',
+    presets: 'Coming soon — browse icon pack presets here.',
+    customize: 'Coming soon — pick per-app icon overrides.',
+    settings: 'Coming soon — manage installed icon packs.',
+  },
+  quicktile: {
+    blurb: 'Add the Customize Studio tile to your quick settings panel.',
+    presets: 'Open your quick settings edit screen and drag in the Customize Studio tile. Tapping it jumps straight to widget creation.',
+    customize: 'Coming soon — choose what the tile opens.',
+    settings: 'Coming soon — rename or re-icon the tile.',
+  },
+  notifications: {
+    blurb: 'Preview how a styled notification from this app looks.',
+    presets: 'Coming soon — notification style presets.',
+    customize: 'Coming soon — pick colors and layout for your notifications.',
+    settings: 'Send a styled test notification using your widget’s accent color.',
+    settingsAction: 'notification',
+  },
+  wallpapers: {
+    blurb: 'Static, live, and depth lock screen wallpapers.',
+    presets: 'Coming soon — browse wallpaper and live wallpaper presets.',
+    customize: 'Coming soon — build a custom or depth lock screen wallpaper.',
+    settings: 'Coming soon — manage applied wallpapers.',
+  },
+  keyboard: {
+    blurb: 'Keyboard themes and layouts.',
+    presets: 'Coming soon — keyboard theme presets.',
+    customize: 'Coming soon — customize keys, colors, and sounds.',
+    settings: 'Coming soon — set your default keyboard theme.',
+  },
+  shortcuts: {
+    blurb: 'Long-press the app icon for quick actions.',
+    presets: 'Create widget and Settings shortcuts are already available — long-press the Customize Studio app icon to see them.',
+    customize: 'Coming soon — add more shortcuts.',
+    settings: 'Coming soon — reorder or rename shortcuts.',
+  },
+  fonts: {
+    blurb: 'System-wide and in-app font choices.',
+    presets: 'Coming soon — font presets.',
+    customize: 'Coming soon — pick a font for your widgets and previews.',
+    settings: 'Coming soon — manage installed fonts.',
+  },
+  edgepanel: {
+    blurb: 'Edge panel-style floating shortcuts and popups.',
+    presets: 'Coming soon — edge panel presets.',
+    customize: 'Coming soon — build your own edge panel.',
+    settings: 'Coming soon — choose where the panel lives.',
+  },
+};
 type LayoutMode = 'Fixed' | 'Adaptive';
 type WidgetShape = 'Rounded' | 'Circle' | 'Square' | 'Pill' | 'Squircle' | 'Cut corner' | 'Diamond' | 'Heart' | 'Arch' | 'Hexagon';
 type WidgetTheme = 'Liquid Glass' | 'Solid Color' | 'Gradient' | 'Transparent';
@@ -188,15 +257,19 @@ function WidgetStudio() {
   const [stepGoal, setStepGoal] = useState(10000);
   const [stepStyle, setStepStyle] = useState('Step ring');
   const [buildVersion, setBuildVersion] = useState<string | null>(null);
+  const [section, setSection] = useState<SectionId>('widgets');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [genericTab, setGenericTab] = useState<GenericTabName>('Presets');
+  const drawerPosition = useRef(new Animated.Value(0)).current;
   const activePosition = useRef(new Animated.Value(0)).current;
   const pageOpacity = useRef(new Animated.Value(1)).current;
   const pageOffset = useRef(new Animated.Value(0)).current;
   const { width } = useWindowDimensions();
   useEffect(() => {
-    if (tab !== 'Widgets' && tab !== 'Customize') return;
+    if (section !== 'widgets' || (tab !== 'Widgets' && tab !== 'Customize')) return;
     const timer = setInterval(() => setClockNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [tab]);
+  }, [tab, section]);
   useEffect(() => {
     const applyShortcutAction = async () => {
       if (Platform.OS !== 'android' || !StudioAndroid) return;
@@ -354,6 +427,48 @@ function WidgetStudio() {
     ]).start();
   };
 
+  const changeGenericTab = (nextTab: GenericTabName) => {
+    if (nextTab === genericTab) return;
+    const nextIndex = genericTabs.findIndex((item) => item.name === nextTab);
+    Animated.spring(activePosition, {
+      toValue: nextIndex * 60,
+      damping: 18,
+      stiffness: 210,
+      mass: 0.8,
+      useNativeDriver: true,
+    }).start();
+    pageOpacity.setValue(0);
+    pageOffset.setValue(10);
+    setGenericTab(nextTab);
+    Animated.parallel([
+      Animated.timing(pageOpacity, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.spring(pageOffset, { toValue: 0, damping: 20, stiffness: 190, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const openSection = (id: SectionId) => {
+    setDrawerOpen(false);
+    if (id === section) return;
+    setSection(id);
+    activePosition.setValue(0);
+    if (id === 'widgets') setTab('Widgets'); else setGenericTab('Presets');
+    pageOpacity.setValue(0);
+    pageOffset.setValue(10);
+    Animated.parallel([
+      Animated.timing(pageOpacity, { toValue: 1, duration: 240, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.spring(pageOffset, { toValue: 0, damping: 20, stiffness: 190, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const openDrawer = () => {
+    setDrawerOpen(true);
+    Animated.timing(drawerPosition, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  };
+
+  const closeDrawer = () => {
+    Animated.timing(drawerPosition, { toValue: 0, duration: 200, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => setDrawerOpen(false));
+  };
+
   const chooseWidget = (widget: Widget) => {
     setSelected(widget);
     resetDesign(widget.accent);
@@ -461,16 +576,35 @@ function WidgetStudio() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <StatusBar barStyle="light-content" />
       <View style={styles.topbar}>
+        <Pressable onPress={openDrawer} style={styles.hamburger} accessibilityLabel="Open menu"><Text style={styles.hamburgerText}>☰</Text></Pressable>
         <View style={styles.brandMark}><Text style={styles.brandMarkText}>c.</Text></View>
         <View style={styles.brandCopy}><Text style={styles.brand}>CUSTOMIZE STUDIO</Text><Text style={styles.brandSub}>Make your device yours</Text></View>
-        <Pressable onPress={() => changeTab('Settings')} style={styles.avatar} accessibilityLabel="Settings"><Text style={styles.avatarText}>A</Text></Pressable>
+        <Pressable onPress={() => (section === 'widgets' ? changeTab('Settings') : changeGenericTab('Settings'))} style={styles.avatar} accessibilityLabel="Settings"><Text style={styles.avatarText}>A</Text></Pressable>
       </View>
-      <Animated.ScrollView stickyHeaderIndices={tab === 'Customize' ? [1] : undefined} style={{ opacity: pageOpacity, transform: [{ translateY: pageOffset }] }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {tab !== 'Widgets' && <View style={styles.headingRow}>
-          <View><Text style={styles.eyebrow}>{tab === 'Customize' ? (selected.id === 'custom' ? 'START WITH A BLANK CANVAS' : 'A FEW LITTLE DETAILS') : tab === 'Device' ? 'YOUR DEVICE' : 'YOUR STUDIO'}</Text><Text style={styles.heading}>{tab === 'Customize' ? selected.id === 'custom' ? <>Create your{'\n'}own widget.</> : <>Fine-tune{'\n'}your widget.</> : tab === 'Device' ? <>Customize beyond{'\n'}the home screen.</> : <>A space that{'\n'}feels like you.</>}</Text></View>
+      <Animated.ScrollView stickyHeaderIndices={section === 'widgets' && tab === 'Customize' ? [1] : undefined} style={{ opacity: pageOpacity, transform: [{ translateY: pageOffset }] }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {section === 'widgets' && tab !== 'Widgets' && <View style={styles.headingRow}>
+          <View><Text style={styles.eyebrow}>{tab === 'Customize' ? (selected.id === 'custom' ? 'START WITH A BLANK CANVAS' : 'A FEW LITTLE DETAILS') : 'YOUR STUDIO'}</Text><Text style={styles.heading}>{tab === 'Customize' ? selected.id === 'custom' ? <>Create your{'\n'}own widget.</> : <>Fine-tune{'\n'}your widget.</> : <>A space that{'\n'}feels like you.</>}</Text></View>
           <View style={styles.sparkle}><Text style={{ color: '#8C6CFF', fontSize: 27 }}>✳</Text></View>
         </View>}
-        {tab === 'Settings' && (
+        {section !== 'widgets' && <View style={styles.headingRow}>
+          <View><Text style={styles.eyebrow}>{genericTab.toUpperCase()}</Text><Text style={styles.heading}>{sections.find((item) => item.id === section)?.label}</Text></View>
+          <View style={styles.sparkle}><Text style={{ color: '#8C6CFF', fontSize: 27 }}>{sections.find((item) => item.id === section)?.icon}</Text></View>
+        </View>}
+        {section !== 'widgets' && (() => {
+          const copy = sectionCopy[section as Exclude<SectionId, 'widgets'>];
+          const note = genericTab === 'Presets' ? copy.presets : genericTab === 'Customize' ? copy.customize : copy.settings;
+          return (
+            <View style={styles.settingsCard}>
+              <View style={styles.settingsIntro}><Text style={styles.settingsIntroIcon}>{sections.find((item) => item.id === section)?.icon}</Text><View><Text style={styles.sectionTitle}>{sections.find((item) => item.id === section)?.label}</Text><Text style={styles.sectionSub}>{copy.blurb}</Text></View></View>
+              <View style={styles.divider} />
+              <View style={styles.settingsRow}><Text style={styles.controlSub}>{note}</Text></View>
+              {genericTab === 'Settings' && copy.settingsAction === 'notification' && (
+                <Pressable onPress={sendTestNotification} style={styles.addHomeButton}><Text style={styles.addHomeIcon}>◔</Text><View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>Send test notification</Text></View><Text style={styles.addHomeArrow}>↗</Text></Pressable>
+              )}
+            </View>
+          );
+        })()}
+        {section === 'widgets' && tab === 'Settings' && (
           <View style={styles.settingsCard}>
             <View style={styles.settingsIntro}><Text style={styles.settingsIntroIcon}>⚙︎</Text><View><Text style={styles.sectionTitle}>Studio settings</Text><Text style={styles.sectionSub}>A few details about your setup.</Text></View></View>
             <View style={styles.divider} />
@@ -483,22 +617,7 @@ function WidgetStudio() {
             <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Customize Studio</Text><Text style={styles.controlSub}>Version {buildVersion ?? '1.0.2'}</Text></View><Text style={styles.settingsValue}>✳</Text></View>
           </View>
         )}
-        {tab === 'Device' && (
-          <View style={styles.settingsCard}>
-            <View style={styles.settingsIntro}><Text style={styles.settingsIntroIcon}>◈</Text><View><Text style={styles.sectionTitle}>Device customizations</Text><Text style={styles.sectionSub}>Beyond widgets — the rest of what you can make your own.</Text></View></View>
-            <View style={styles.divider} />
-            <Pressable onPress={sendTestNotification} style={styles.settingsRow}><View><Text style={styles.controlTitle}>Notifications</Text><Text style={styles.controlSub}>Send a styled test notification using your widget's accent color</Text></View><Text style={styles.settingsChevron}>›</Text></Pressable>
-            <View style={styles.divider} />
-            <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Quick Settings tile</Text><Text style={styles.controlSub}>Add the Customize Studio tile from your quick settings edit screen — taps it to jump straight to widget creation</Text></View><Text style={styles.settingsValue}>▦</Text></View>
-            <View style={styles.divider} />
-            <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>App shortcuts</Text><Text style={styles.controlSub}>Long-press the app icon for Create widget and Settings shortcuts</Text></View><Text style={styles.settingsValue}>↗</Text></View>
-            <View style={styles.divider} />
-            <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Icon packs</Text><Text style={styles.controlSub}>Coming soon — themed app icon sets other launchers can pick up</Text></View><Text style={styles.settingsValue}>○</Text></View>
-            <View style={styles.divider} />
-            <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Lock screen widgets</Text><Text style={styles.controlSub}>Coming soon — Android 14+ lock screen widget support</Text></View><Text style={styles.settingsValue}>○</Text></View>
-          </View>
-        )}
-        {tab === 'Customize' && <View style={styles.previewShell}>
+        {section === 'widgets' && tab === 'Customize' && <View style={styles.previewShell}>
               <View style={styles.previewTop}><Text style={styles.previewEyebrow}>LIVE PREVIEW</Text><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View>
               <View style={[styles.widgetPreview, previewDimensions, { borderColor: theme === 'Transparent' ? 'transparent' : theme === 'Liquid Glass' ? 'rgba(255,255,255,0.48)' : colors.border, borderRadius: shapeRadius, backgroundColor: theme === 'Solid Color' ? colors.background : 'transparent' }]}>
                 {theme === 'Gradient' && <LinearGradient pointerEvents="none" colors={[colors.background, gradientEnd] as const} style={styles.previewBackground} />}
@@ -508,7 +627,7 @@ function WidgetStudio() {
               </View>
               <View style={styles.previewFooter}><Text style={styles.previewHint}>◉  Updates live as you customize</Text><Pressable onPress={() => setSaved(!saved)} style={[styles.saveButton, saved && styles.saveButtonDone]}><Text style={[styles.saveButtonText, saved && { color: '#0E0C16' }]}>{saved ? '✓  Saved' : '＋  Save widget'}</Text></Pressable></View>
             </View>}
-        {tab === 'Widgets' && <View>
+        {section === 'widgets' && tab === 'Widgets' && <View>
               <Pressable onPress={startFromScratch} style={styles.createScratchButton}><Text style={styles.createScratchIcon}>＋</Text><View style={{ flex: 1 }}><Text style={styles.controlTitle}>Create from scratch</Text><Text style={styles.controlSub}>Choose a widget type, then build every detail.</Text></View><Text style={styles.settingsChevron}>›</Text></Pressable>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
                 {categories.map((item) => <Pressable key={item} onPress={() => setCategory(item)} style={[styles.chip, category === item && styles.chipActive]}><Text style={[styles.chipText, category === item && styles.chipTextActive]}>{item}</Text></Pressable>)}
@@ -521,7 +640,7 @@ function WidgetStudio() {
                 </Pressable>)}
               </View>
         </View>}
-        {tab === 'Customize' && <View>
+        {section === 'widgets' && tab === 'Customize' && <View>
               {selected.id === 'custom' && <View style={styles.customCard}>
                 <Text style={styles.controlTitle}>Choose a starting point</Text><Text style={styles.controlSub}>You can change this later. All design options stay editable.</Text>
                 <View style={styles.optionGrid}>{widgetTypes.map((type) => <Pressable key={type} onPress={() => selectScratchType(type)} style={[styles.typeButton, selected.type === type && styles.optionButtonActive]}><Text style={[styles.optionText, selected.type === type && styles.optionTextActive]}>{type}</Text></Pressable>)}</View>
@@ -606,9 +725,12 @@ function WidgetStudio() {
       <View pointerEvents="box-none" style={styles.bottomDock}>
         <View style={styles.bottomNav}>
           <Animated.View pointerEvents="none" style={[styles.navActiveCircle, { transform: [{ translateX: activePosition }] }]} />
-          {tabs.map((item) => <Pressable key={item.name} onPress={() => changeTab(item.name)} style={styles.navItem} android_ripple={{ color: '#2C2740', borderless: true, radius: 24 }} accessibilityRole="tab" accessibilityLabel={item.name} accessibilityState={{ selected: tab === item.name }}>
-            <View style={styles.navIconWrap}><Text style={[styles.navIcon, tab === item.name && styles.navIconActive]}>{item.icon}</Text></View>
-          </Pressable>)}
+          {(section === 'widgets' ? tabs : genericTabs).map((item) => {
+            const active = section === 'widgets' ? tab === item.name : genericTab === item.name;
+            return <Pressable key={item.name} onPress={() => (section === 'widgets' ? changeTab(item.name as TabName) : changeGenericTab(item.name as GenericTabName))} style={styles.navItem} android_ripple={{ color: '#2C2740', borderless: true, radius: 24 }} accessibilityRole="tab" accessibilityLabel={item.name} accessibilityState={{ selected: active }}>
+              <View style={styles.navIconWrap}><Text style={[styles.navIcon, active && styles.navIconActive]}>{item.icon}</Text></View>
+            </Pressable>;
+          })}
         </View>
       </View>
       <Modal visible={widgetSheetVisible} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setWidgetSheetVisible(false)}>
@@ -642,6 +764,28 @@ function WidgetStudio() {
             </ScrollView>
             <Pressable onPress={() => setEventPickerVisible(false)} style={styles.closeSheetButton}><Text style={styles.closeSheetText}>Done</Text></Pressable>
           </View>
+        </View>
+      </Modal>
+      <Modal visible={drawerOpen} transparent animationType="none" statusBarTranslucent onRequestClose={closeDrawer}>
+        <View style={styles.drawerOverlay}>
+          <Animated.View style={[styles.drawerScrim, { opacity: drawerPosition }]}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={closeDrawer} accessibilityLabel="Close menu" />
+          </Animated.View>
+          <Animated.View style={[styles.drawerPanel, { transform: [{ translateX: drawerPosition.interpolate({ inputRange: [0, 1], outputRange: [-300, 0] }) }] }]}>
+            <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
+              <Text style={styles.drawerEyebrow}>CUSTOMIZE</Text>
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                {sections.map((item) => <Pressable key={item.id} onPress={() => openSection(item.id)} style={[styles.drawerItem, section === item.id && styles.drawerItemActive]}>
+                  <Text style={[styles.drawerItemIcon, section === item.id && styles.drawerItemIconActive]}>{item.icon}</Text>
+                  <Text style={[styles.drawerItemLabel, section === item.id && styles.drawerItemLabelActive]}>{item.label}</Text>
+                </Pressable>)}
+              </ScrollView>
+              <View style={styles.drawerFooter}>
+                <Text style={styles.drawerFooterTitle}>Customize Studio</Text>
+                <Text style={styles.drawerFooterSub}>Version {buildVersion ?? '1.0.2'}</Text>
+              </View>
+            </SafeAreaView>
+          </Animated.View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -856,7 +1000,17 @@ function WidgetSample({ widget, large = false, accent, clockMode = 'Analog', ana
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0E0C16' }, topbar: { height: 70, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#221E33' },
+  safe: { flex: 1, backgroundColor: '#0E0C16' }, topbar: { height: 70, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#221E33' },
+  hamburger: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: 9 }, hamburgerText: { color: '#F2EEFC', fontSize: 20 },
+  drawerOverlay: { flex: 1, flexDirection: 'row' }, drawerScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.58)' },
+  drawerPanel: { width: 280, height: '100%', backgroundColor: '#15131F', borderRightWidth: 1, borderRightColor: '#282339', paddingHorizontal: 16, paddingTop: 10 },
+  drawerEyebrow: { color: '#9D99BE', letterSpacing: 2, fontWeight: '700', fontSize: 10, marginTop: 10, marginBottom: 6, marginLeft: 6 },
+  drawerItem: { flexDirection: 'row', alignItems: 'center', minHeight: 50, borderRadius: 12, paddingHorizontal: 10, gap: 12 },
+  drawerItemActive: { backgroundColor: '#231F33' },
+  drawerItemIcon: { color: '#8884A8', fontSize: 17, width: 24, textAlign: 'center' }, drawerItemIconActive: { color: '#8C6CFF' },
+  drawerItemLabel: { color: '#A6A2C4', fontSize: 13, fontWeight: '600', flex: 1 }, drawerItemLabelActive: { color: '#F2EEFC' },
+  drawerFooter: { borderTopWidth: 1, borderTopColor: '#282339', paddingVertical: 16, paddingHorizontal: 6 },
+  drawerFooterTitle: { color: '#F2EEFC', fontSize: 12, fontWeight: '700' }, drawerFooterSub: { color: '#8A86A8', fontSize: 10, marginTop: 3 },
   brandMark: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#8C6CFF', alignItems: 'center', justifyContent: 'center' }, brandMarkText: { fontSize: 22, fontWeight: '800', color: '#0E0C16', letterSpacing: -2 }, brandCopy: { marginLeft: 11, flex: 1 }, brand: { color: '#F4F1E8', fontSize: 11, letterSpacing: 2.1, fontWeight: '800' }, brandSub: { color: '#81809F', fontSize: 11, marginTop: 3 }, avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#272238', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#35304A' }, avatarText: { color: '#8C6CFF', fontWeight: '700' },
   content: { paddingHorizontal: 22, paddingBottom: 112 }, headingRow: { marginTop: 26, marginBottom: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, eyebrow: { color: '#9D99BE', letterSpacing: 2, fontWeight: '700', fontSize: 9 }, heading: { color: '#F2EEFC', fontSize: 37, lineHeight: 40, fontWeight: '700', letterSpacing: -1.6, marginTop: 8 }, sparkle: { width: 55, height: 55, borderRadius: 20, borderWidth: 1, borderColor: '#353048', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '8deg' }] },
   previewShell: { backgroundColor: '#1C1A28', borderRadius: 23, padding: 14, borderWidth: 1, borderColor: '#282339' }, previewTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, paddingHorizontal: 3 }, previewEyebrow: { color: '#A29ECB', fontSize: 9, letterSpacing: 1.7, fontWeight: '700', flex: 1 }, liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#8C6CFF', marginRight: 5 }, liveText: { color: '#8C6CFF', fontSize: 8, letterSpacing: 1.3, fontWeight: '800' }, widgetPreview: { overflow: 'hidden', position: 'relative', borderWidth: 1, padding: 0, justifyContent: 'flex-start' }, previewBackground: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }, previewIconPosition: { position: 'absolute' }, previewTextPosition: { position: 'absolute', width: '78%' }, miniIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, previewType: { color: '#8D89AD', fontSize: 8, letterSpacing: 1.4, marginLeft: 9, flex: 1, fontWeight: '700' }, more: { color: '#8884A8', letterSpacing: 2, fontSize: 12 }, previewValue: { fontSize: 36, fontWeight: '600', letterSpacing: -1.3, marginTop: 7 }, previewBottom: {}, previewTitle: { color: '#F2EEFC', fontSize: 13, fontWeight: '700' }, previewSubtitle: { color: '#8E8AAE', fontSize: 10, marginTop: 3 }, calendarFace: { paddingHorizontal: 17, paddingVertical: 9 }, calendarMonth: { fontSize: 16, fontWeight: '800', marginBottom: 5 }, calendarWeekdays: { fontSize: 8, letterSpacing: 0.1, fontWeight: '700' }, calendarDays: { fontSize: 9, lineHeight: 12, fontVariant: ['tabular-nums'] }, calendarEvent: { fontSize: 8, marginTop: 2 }, previewFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12 }, previewHint: { color: '#81809F', fontSize: 9, flex: 1 }, saveButton: { backgroundColor: '#8C6CFF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginLeft: 8 }, saveButtonDone: { backgroundColor: '#8C6CFF' }, saveButtonText: { color: '#15131F', fontWeight: '800', fontSize: 10 },
@@ -866,7 +1020,7 @@ const styles = StyleSheet.create({
   emptyState: { minHeight: 145, borderRadius: 17, backgroundColor: '#1C1A28', borderWidth: 1, borderColor: '#2A2538', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }, emptyIcon: { color: '#8C6CFF', fontSize: 25 }, emptyTitle: { color: '#ECE8FA', fontSize: 13, fontWeight: '700', marginTop: 9 }, emptySub: { color: '#8A86A8', fontSize: 10, marginTop: 5 },
   addHomeButton: { minHeight: 66, borderRadius: 15, backgroundColor: '#8C6CFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginTop: 12 }, addHomeIcon: { fontSize: 23, color: '#15131F', fontWeight: '600', marginRight: 12 }, addHomeTitle: { color: '#15131F', fontSize: 12, fontWeight: '800' }, addHomeSub: { color: '#332C52', fontSize: 9, marginTop: 3 }, addHomeArrow: { color: '#15131F', fontSize: 18, fontWeight: '700' },
   settingsCard: { backgroundColor: '#1C1A28', borderRadius: 20, borderWidth: 1, borderColor: '#2A2538', paddingHorizontal: 16, marginTop: 4 }, settingsIntro: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18 }, settingsIntroIcon: { color: '#8C6CFF', fontSize: 24, marginRight: 13 }, settingsRow: { minHeight: 65, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, settingsValue: { color: '#8C6CFF', fontSize: 15, fontWeight: '700', marginRight: 4 }, settingsChevron: { color: '#81809F', fontSize: 23, marginRight: 4 },
-  bottomDock: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', backgroundColor: 'transparent' }, bottomNav: { alignSelf: 'center', width: 262, height: 62, borderRadius: 31, borderWidth: 1, borderColor: '#332E45', backgroundColor: '#1C1A28', flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginTop: 8, marginBottom: 18, paddingHorizontal: 8, shadowColor: '#000000', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 9 }, navActiveCircle: { position: 'absolute', left: 19, top: 8, width: 44, height: 44, borderRadius: 22, backgroundColor: '#8C6CFF' }, navItem: { width: 54, height: 50, borderRadius: 27, alignItems: 'center', justifyContent: 'center' }, navIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, navIcon: { color: '#8E8AAE', fontSize: 20, fontWeight: '600' }, navIconActive: { color: '#15131F' },
+  bottomDock: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', backgroundColor: 'transparent' }, bottomNav: { alignSelf: 'center', width: 202, height: 62, borderRadius: 31, borderWidth: 1, borderColor: '#332E45', backgroundColor: '#1C1A28', flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginTop: 8, marginBottom: 18, paddingHorizontal: 8, shadowColor: '#000000', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 9 }, navActiveCircle: { position: 'absolute', left: 19, top: 8, width: 44, height: 44, borderRadius: 22, backgroundColor: '#8C6CFF' }, navItem: { width: 54, height: 50, borderRadius: 27, alignItems: 'center', justifyContent: 'center' }, navIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, navIcon: { color: '#8E8AAE', fontSize: 20, fontWeight: '600' }, navIconActive: { color: '#15131F' },
   sheetOverlay: { flex: 1, justifyContent: 'flex-end' }, sheetScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.58)' }, widgetSheet: { backgroundColor: '#1C1A28', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: '#302B42', paddingHorizontal: 22, paddingTop: 10, paddingBottom: 30 }, sheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: '#514C6B', marginBottom: 18 }, sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 }, sheetEyebrow: { color: '#9D99BE', fontSize: 9, letterSpacing: 1.6, fontWeight: '700' }, sheetTitle: { color: '#F2EEFC', fontSize: 20, fontWeight: '700', marginTop: 4 }, sheetClose: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2A2538' }, sheetCloseText: { color: '#C4BDDF', fontSize: 22, lineHeight: 24 }, sheetWidgetPreview: { minHeight: 184, borderRadius: 18, borderWidth: 1, overflow: 'hidden', backgroundColor: '#231F33', padding: 16, justifyContent: 'space-between' }, sheetGlow: { position: 'absolute', width: 150, height: 150, borderRadius: 75, opacity: 0.08, right: -30, top: 15 }, sheetPreviewMeta: { flexDirection: 'row', alignItems: 'center' }, sheetValue: { fontSize: 38, fontWeight: '700', letterSpacing: -1.2 }, sheetSubtitle: { color: '#ADA6CE', fontSize: 11, marginTop: -8 }, sheetCalendarFace: { flex: 1, justifyContent: 'space-evenly' }, sheetCalendarDays: { fontSize: 9, lineHeight: 11, fontVariant: ['tabular-nums'] }, sheetCalendarEvent: { fontSize: 8, marginTop: 1 }, sheetActions: { flexDirection: 'row', gap: 10, marginTop: 16 }, customizeButton: { flex: 1, minHeight: 52, borderRadius: 14, borderWidth: 1, borderColor: '#504B6A', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }, customizeButtonText: { color: '#E8E6DE', fontSize: 12, fontWeight: '700' }, addScreenButton: { flex: 1.25, minHeight: 52, borderRadius: 14, backgroundColor: '#8C6CFF', alignItems: 'center', justifyContent: 'center' }, addScreenButtonText: { color: '#15131F', fontSize: 12, fontWeight: '800' },
   eventPickerSheet: { backgroundColor: '#1C1A28', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: '#302B42', paddingHorizontal: 22, paddingTop: 10, paddingBottom: 22, maxHeight: '76%' }, eventList: { marginTop: 14 }, eventOption: { minHeight: 62, borderBottomWidth: 1, borderBottomColor: '#282339', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, eventOptionCopy: { flex: 1, paddingVertical: 11, paddingRight: 12 }, calendarCheck: { color: '#8C6CFF', fontWeight: '800', fontSize: 16 }, calendarPickButton: { color: '#8C6CFF', fontSize: 11, fontWeight: '700', marginTop: 12 }, closeSheetButton: { height: 46, marginTop: 14, backgroundColor: '#8C6CFF', borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, closeSheetText: { color: '#15131F', fontWeight: '800', fontSize: 12 },
   createScratchButton: { minHeight: 69, flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1A28', borderRadius: 16, borderWidth: 1, borderColor: '#37334B', paddingHorizontal: 14, marginTop: 8, marginBottom: 8 }, createScratchIcon: { color: '#8C6CFF', fontSize: 24, marginRight: 12 }, typeButton: { flexGrow: 1, minWidth: '30%', minHeight: 40, paddingHorizontal: 10, borderRadius: 11, borderWidth: 1, borderColor: '#302B42', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1726' }, scratchEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }, scratchStar: { color: '#8C6CFF', fontSize: 28 }, scratchInput: { height: 44, marginTop: 10, borderWidth: 1, borderColor: '#332E45', borderRadius: 11, backgroundColor: '#211E30', paddingHorizontal: 12, color: '#F2EEFC', fontSize: 12 }, toggleRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, toggleTrack: { width: 43, height: 25, borderRadius: 13, padding: 3, justifyContent: 'center', backgroundColor: '#3E3A54' }, toggleTrackActive: { backgroundColor: '#6B4FD1' }, toggleThumb: { width: 19, height: 19, borderRadius: 10, backgroundColor: '#EFEBFB' }, toggleThumbActive: { alignSelf: 'flex-end', backgroundColor: '#8C6CFF' }, sampleContent: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 5 }, sampleLarge: { padding: 8 }, clockFace: { width: 96, height: 96, borderRadius: 15, borderWidth: 1, borderColor: '#71739A', backgroundColor: '#1C1A28', alignItems: 'center', justifyContent: 'center', position: 'relative' }, clockFaceLarge: { width: 152, height: 152, borderRadius: 100 }, clockTick: { position: 'absolute', borderRadius: 3 }, clockNumber: { position: 'absolute', color: '#F2EEFC', fontSize: 11, fontWeight: '700' }, clockNumberLarge: { fontSize: 18 }, clockHandPivot: { position: 'absolute', width: 0, height: 0 }, clockHand: { position: 'absolute', borderRadius: 2 }, clockPin: { position: 'absolute', width: 7, height: 7, borderRadius: 4 }, analogWrap: { alignItems: 'center' }, clockPairRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' }, digitalFace: { alignItems: 'center', justifyContent: 'center' }, digitalFaceLarge: { gap: 7 }, flipClockFace: { padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#62645A', backgroundColor: '#19152C' }, digitalTime: { color: '#8C6CFF', fontSize: 20, fontWeight: '700', letterSpacing: -0.5 }, digitalTimeLarge: { fontSize: 38, letterSpacing: -1.3 }, digitalDate: { color: '#938FB3', fontSize: 8, letterSpacing: 1, textAlign: 'center', marginTop: 5 }, sampleIcon: { color: '#8C6CFF', fontSize: 20, marginBottom: 4 }, sampleValue: { color: '#8C6CFF', fontSize: 15, fontWeight: '700', textAlign: 'center' }, stepsValue: { fontSize: 21, fontWeight: '700' }, stepsTrack: { width: '85%', height: 5, backgroundColor: '#353049', borderRadius: 3, overflow: 'hidden', marginTop: 8 }, stepsFill: { height: '100%', borderRadius: 3 }, stepsBars: { height: 78, flexDirection: 'row', alignItems: 'flex-end', gap: 5 }, stepsBar: { width: 8, borderRadius: 5 },

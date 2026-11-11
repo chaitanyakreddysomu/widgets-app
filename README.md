@@ -1,6 +1,11 @@
 # Widget Studio
 
-A custom widget designer built with Expo SDK 58.0.5 and React Native 0.88. Browse widget concepts, preview a design, and customize it for the home screen.
+A custom widget designer built with React Native 0.88 for Android. Browse widget concepts, preview a design, and customize it for the home screen.
+
+Beyond home-screen widgets, the app adds:
+- **App shortcuts** — long-press the app icon for "Create widget" and "Settings" shortcuts
+- **Quick Settings tile** — add the Widget Studio tile from the quick settings edit screen to jump straight to widget creation
+- **Styled notifications** — a test notification colored with your widget's accent, sendable from the Settings tab
 
 ## Android APK from GitHub Actions
 

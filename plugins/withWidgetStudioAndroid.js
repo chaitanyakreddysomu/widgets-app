@@ -165,7 +165,7 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
   }
 
   @ReactMethod fun getLaunchShortcutAction(promise: Promise) {
-    val activity = currentActivity
+    val activity = reactApplicationContext.currentActivity
     val action = activity?.intent?.getStringExtra("shortcut_action")
     activity?.intent?.removeExtra("shortcut_action")
     promise.resolve(action)
@@ -173,7 +173,7 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
 
   @ReactMethod fun showStyledNotification(title: String, message: String, accentColorHex: String, promise: Promise) {
     try {
-      val manager = reactApplicationContext.getSystemService(NotificationManager::class.java)
+      val manager = reactApplicationContext.getSystemService(NotificationManager::class.java)!!
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, reactApplicationContext.getString(R.string.notification_channel_name), NotificationManager.IMPORTANCE_DEFAULT)
         manager.createNotificationChannel(channel)

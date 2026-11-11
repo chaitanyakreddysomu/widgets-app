@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert, AppState, Animated, Easing, Modal, PermissionsAndroid, Platform, StatusBar, TextInput, View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions,
+  Alert, AppState, Animated, Easing, Image, Modal, PermissionsAndroid, Platform, StatusBar, TextInput, View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -117,9 +117,9 @@ const sectionCopy: Record<Exclude<SectionId, 'widgets'>, SectionCopy> = {
   },
   wallpapers: {
     blurb: 'Static, live, and depth lock screen wallpapers.',
-    presets: 'Coming soon — browse wallpaper and live wallpaper presets.',
-    customize: 'Coming soon — build a custom or depth lock screen wallpaper.',
-    settings: 'Coming soon — manage applied wallpapers.',
+    presets: 'Gradient presets you can set in one tap, plus the system live wallpaper picker.',
+    customize: 'Pick a photo from your gallery and apply it to your home screen, lock screen, or both.',
+    settings: 'Manage wallpapers, live wallpapers, and lock screen effects from system settings.',
   },
   keyboard: {
     blurb: 'Keyboard themes and layouts.',
@@ -179,8 +179,21 @@ type StudioNative = {
   requestHealthPermissions: (permissions: string[]) => Promise<boolean>;
   getStepsToday: () => Promise<string>;
   getSleepLastNight: () => Promise<string>;
+  pickWallpaperImage: () => Promise<string | null>;
+  setWallpaperFromPath: (path: string, target: string) => Promise<boolean>;
+  setGradientWallpaper: (colors: string[], target: string) => Promise<boolean>;
+  openLiveWallpaperPicker: () => Promise<boolean>;
+  openWallpaperSettings: () => Promise<boolean>;
 };
 const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
+const wallpaperGradientPresets = [
+  { id: 'dusk', name: 'Dusk Violet', colors: ['#2B2250', '#8C6CFF'] },
+  { id: 'mint', name: 'Mint Fade', colors: ['#123C34', '#88D5C3'] },
+  { id: 'sunset', name: 'Warm Sunset', colors: ['#3A1220', '#FFAE91'] },
+  { id: 'ocean', name: 'Deep Ocean', colors: ['#0B1C3A', '#32ADE6'] },
+  { id: 'rose', name: 'Rose Quartz', colors: ['#3A1230', '#FAB8D0'] },
+  { id: 'noir', name: 'Midnight Noir', colors: ['#000000', '#303030'] },
+];
 const widgetSlotNames = ['StudioWidget', ...Array.from({ length: 11 }, (_, index) => `StudioWidget${index + 2}`)];
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes) || bytes < 0) return 'Unknown';
@@ -268,6 +281,11 @@ function WidgetStudio() {
   const [buildVersion, setBuildVersion] = useState<string | null>(null);
   const [updateCheckState, setUpdateCheckState] = useState<'idle' | 'checking' | 'upToDate' | 'available' | 'installing' | 'error'>('idle');
   const [updateInfo, setUpdateInfo] = useState<{ tagName: string; downloadUrl: string } | null>(null);
+  const [wallpaperTarget, setWallpaperTarget] = useState<'home' | 'lock' | 'both'>('both');
+  const [pickedWallpaperPath, setPickedWallpaperPath] = useState<string | null>(null);
+  const [selectedGradientId, setSelectedGradientId] = useState<string | null>(null);
+  const [wallpaperBusy, setWallpaperBusy] = useState(false);
+  const [wallpaperStatus, setWallpaperStatus] = useState<string | null>(null);
   const [section, setSection] = useState<SectionId>('widgets');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [genericTab, setGenericTab] = useState<GenericTabName>('Presets');
@@ -468,6 +486,54 @@ function WidgetStudio() {
         Alert.alert('Update failed', 'Could not download or install the update. Check your connection and try again.');
       }
     }
+  };
+
+  const pickWallpaperImage = async () => {
+    if (Platform.OS !== 'android' || !StudioAndroid) { Alert.alert('Not available', 'Wallpapers are only wired up for Android right now.'); return; }
+    try {
+      const path = await StudioAndroid.pickWallpaperImage();
+      if (path) { setPickedWallpaperPath(path); setSelectedGradientId(null); setWallpaperStatus(null); }
+    } catch {
+      Alert.alert('Could not open picker', 'Try choosing an image again.');
+    }
+  };
+
+  const applyPickedWallpaper = async () => {
+    if (!StudioAndroid || !pickedWallpaperPath) return;
+    setWallpaperBusy(true);
+    try {
+      await StudioAndroid.setWallpaperFromPath(pickedWallpaperPath, wallpaperTarget);
+      setWallpaperStatus('Wallpaper applied.');
+    } catch {
+      Alert.alert('Could not set wallpaper', 'Try a different image.');
+    } finally {
+      setWallpaperBusy(false);
+    }
+  };
+
+  const applyGradientWallpaper = async (preset: (typeof wallpaperGradientPresets)[number]) => {
+    if (Platform.OS !== 'android' || !StudioAndroid) { Alert.alert('Not available', 'Wallpapers are only wired up for Android right now.'); return; }
+    setWallpaperBusy(true);
+    try {
+      await StudioAndroid.setGradientWallpaper(preset.colors, wallpaperTarget);
+      setSelectedGradientId(preset.id);
+      setPickedWallpaperPath(null);
+      setWallpaperStatus(`${preset.name} applied.`);
+    } catch {
+      Alert.alert('Could not set wallpaper', 'Try again in a moment.');
+    } finally {
+      setWallpaperBusy(false);
+    }
+  };
+
+  const openLiveWallpapers = () => {
+    if (Platform.OS !== 'android' || !StudioAndroid) { Alert.alert('Not available', 'Live wallpapers are only wired up for Android right now.'); return; }
+    StudioAndroid.openLiveWallpaperPicker().catch(() => Alert.alert('Could not open', 'Your launcher may not support live wallpapers.'));
+  };
+
+  const openWallpaperSettingsAction = () => {
+    if (Platform.OS !== 'android' || !StudioAndroid) return;
+    StudioAndroid.openWallpaperSettings().catch(() => {});
   };
 
   const refreshSelectedData = async (widget: Widget = selected): Promise<Partial<Widget>> => {
@@ -685,7 +751,7 @@ function WidgetStudio() {
           <View><Text style={styles.eyebrow}>{genericTab.toUpperCase()}</Text><Text style={styles.heading}>{sections.find((item) => item.id === section)?.label}</Text></View>
           <View style={styles.sparkle}><Text style={{ color: '#8C6CFF', fontSize: 27 }}>{sections.find((item) => item.id === section)?.icon}</Text></View>
         </View>}
-        {section !== 'widgets' && (() => {
+        {section !== 'widgets' && section !== 'wallpapers' && (() => {
           const copy = sectionCopy[section as Exclude<SectionId, 'widgets'>];
           const note = genericTab === 'Presets' ? copy.presets : genericTab === 'Customize' ? copy.customize : copy.settings;
           return (
@@ -699,6 +765,45 @@ function WidgetStudio() {
             </View>
           );
         })()}
+        {section === 'wallpapers' && (
+          <View style={styles.settingsCard}>
+            <View style={styles.settingsIntro}><Text style={styles.settingsIntroIcon}>◧</Text><View><Text style={styles.sectionTitle}>Wallpapers</Text><Text style={styles.sectionSub}>{sectionCopy.wallpapers.blurb}</Text></View></View>
+            <View style={styles.divider} />
+            {genericTab === 'Presets' && <View style={{ paddingBottom: 16 }}>
+              <Text style={[styles.controlSub, { marginTop: 14 }]}>{sectionCopy.wallpapers.presets}</Text>
+              <View style={styles.optionGrid}>
+                {wallpaperGradientPresets.map((preset) => (
+                  <Pressable key={preset.id} onPress={() => applyGradientWallpaper(preset)} disabled={wallpaperBusy} style={styles.wallpaperSwatchWrap}>
+                    <LinearGradient colors={preset.colors as [string, string]} style={styles.wallpaperSwatch}>
+                      {selectedGradientId === preset.id && <Text style={styles.wallpaperSwatchCheck}>✓</Text>}
+                    </LinearGradient>
+                    <Text style={styles.wallpaperSwatchLabel}>{preset.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Pressable onPress={openLiveWallpapers} style={styles.addHomeButton}><Text style={styles.addHomeIcon}>▶</Text><View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>Browse live wallpapers</Text></View><Text style={styles.addHomeArrow}>↗</Text></Pressable>
+            </View>}
+            {genericTab === 'Customize' && <View style={{ paddingBottom: 16 }}>
+              <Pressable onPress={pickWallpaperImage} style={styles.createScratchButton}><Text style={styles.createScratchIcon}>⛰</Text><View style={{ flex: 1 }}><Text style={styles.controlTitle}>Choose from gallery</Text><Text style={styles.controlSub}>Pick a photo to use as your wallpaper.</Text></View><Text style={styles.settingsChevron}>›</Text></Pressable>
+              {pickedWallpaperPath && <Image source={{ uri: pickedWallpaperPath }} style={styles.wallpaperPreviewImage} />}
+              <Text style={[styles.controlTitle, { marginTop: 14 }]}>Apply to</Text>
+              <OptionPicker
+                options={['Home screen', 'Lock screen', 'Both']}
+                value={wallpaperTarget === 'home' ? 'Home screen' : wallpaperTarget === 'lock' ? 'Lock screen' : 'Both'}
+                onSelect={(value) => setWallpaperTarget(value === 'Home screen' ? 'home' : value === 'Lock screen' ? 'lock' : 'both')}
+              />
+              {pickedWallpaperPath && <Pressable onPress={applyPickedWallpaper} disabled={wallpaperBusy} style={styles.addHomeButton}><Text style={styles.addHomeIcon}>✓</Text><View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>{wallpaperBusy ? 'Applying…' : 'Set as wallpaper'}</Text></View></Pressable>}
+              <View style={styles.customCard}>
+                <Text style={styles.controlTitle}>Depth lock screen</Text>
+                <Text style={styles.controlSub}>Samsung’s depth and photo lock screen effects live in the system wallpaper picker — open it from Settings below and choose a depth-enabled photo.</Text>
+              </View>
+            </View>}
+            {genericTab === 'Settings' && <View style={{ paddingBottom: 16 }}>
+              <Text style={[styles.controlSub, { marginTop: 14 }]}>{wallpaperStatus ?? sectionCopy.wallpapers.settings}</Text>
+              <Pressable onPress={openWallpaperSettingsAction} style={styles.addHomeButton}><Text style={styles.addHomeIcon}>⚙︎</Text><View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>Open wallpaper & style settings</Text></View><Text style={styles.addHomeArrow}>↗</Text></Pressable>
+            </View>}
+          </View>
+        )}
         {section === 'widgets' && tab === 'Settings' && (
           <View style={styles.settingsCard}>
             <View style={styles.settingsIntro}><Text style={styles.settingsIntroIcon}>⚙︎</Text><View><Text style={styles.sectionTitle}>Studio settings</Text><Text style={styles.sectionSub}>A few details about your setup.</Text></View></View>
@@ -1137,6 +1242,7 @@ const styles = StyleSheet.create({
   emptyState: { minHeight: 145, borderRadius: 17, backgroundColor: '#1C1A28', borderWidth: 1, borderColor: '#2A2538', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }, emptyIcon: { color: '#8C6CFF', fontSize: 25 }, emptyTitle: { color: '#ECE8FA', fontSize: 13, fontWeight: '700', marginTop: 9 }, emptySub: { color: '#8A86A8', fontSize: 10, marginTop: 5 },
   addHomeButton: { minHeight: 66, borderRadius: 15, backgroundColor: '#8C6CFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginTop: 12 }, addHomeIcon: { fontSize: 23, color: '#15131F', fontWeight: '600', marginRight: 12 }, addHomeTitle: { color: '#15131F', fontSize: 12, fontWeight: '800' }, addHomeSub: { color: '#332C52', fontSize: 9, marginTop: 3 }, addHomeArrow: { color: '#15131F', fontSize: 18, fontWeight: '700' },
   settingsCard: { backgroundColor: '#1C1A28', borderRadius: 20, borderWidth: 1, borderColor: '#2A2538', paddingHorizontal: 16, marginTop: 4 }, settingsIntro: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18 }, settingsIntroIcon: { color: '#8C6CFF', fontSize: 24, marginRight: 13 }, settingsRow: { minHeight: 65, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, settingsValue: { color: '#8C6CFF', fontSize: 15, fontWeight: '700', marginRight: 4 }, settingsChevron: { color: '#81809F', fontSize: 23, marginRight: 4 },
+  wallpaperSwatchWrap: { width: '30%', alignItems: 'center' }, wallpaperSwatch: { width: '100%', aspectRatio: 0.72, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#332E45' }, wallpaperSwatchCheck: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' }, wallpaperSwatchLabel: { color: '#A6A2C4', fontSize: 9, marginTop: 6, textAlign: 'center' }, wallpaperPreviewImage: { width: '100%', height: 220, borderRadius: 16, marginTop: 12, backgroundColor: '#231F33' },
   bottomDock: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', backgroundColor: 'transparent' }, bottomNav: { alignSelf: 'center', width: 202, height: 62, borderRadius: 31, borderWidth: 1, borderColor: '#332E45', backgroundColor: '#1C1A28', flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginTop: 8, marginBottom: 18, paddingHorizontal: 8, shadowColor: '#000000', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 9 }, navActiveCircle: { position: 'absolute', left: 19, top: 8, width: 44, height: 44, borderRadius: 22, backgroundColor: '#8C6CFF' }, navItem: { width: 54, height: 50, borderRadius: 27, alignItems: 'center', justifyContent: 'center' }, navIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, navIcon: { color: '#8E8AAE', fontSize: 20, fontWeight: '600' }, navIconActive: { color: '#15131F' },
   sheetOverlay: { flex: 1, justifyContent: 'flex-end' }, sheetScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.58)' }, widgetSheet: { backgroundColor: '#1C1A28', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: '#302B42', paddingHorizontal: 22, paddingTop: 10, paddingBottom: 30 }, sheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: '#514C6B', marginBottom: 18 }, sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 }, sheetEyebrow: { color: '#9D99BE', fontSize: 9, letterSpacing: 1.6, fontWeight: '700' }, sheetTitle: { color: '#F2EEFC', fontSize: 20, fontWeight: '700', marginTop: 4 }, sheetClose: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2A2538' }, sheetCloseText: { color: '#C4BDDF', fontSize: 22, lineHeight: 24 }, sheetWidgetPreview: { minHeight: 184, borderRadius: 18, borderWidth: 1, overflow: 'hidden', backgroundColor: '#231F33', padding: 16, justifyContent: 'space-between' }, sheetGlow: { position: 'absolute', width: 150, height: 150, borderRadius: 75, opacity: 0.08, right: -30, top: 15 }, sheetPreviewMeta: { flexDirection: 'row', alignItems: 'center' }, sheetValue: { fontSize: 38, fontWeight: '700', letterSpacing: -1.2 }, sheetSubtitle: { color: '#ADA6CE', fontSize: 11, marginTop: -8 }, sheetCalendarFace: { flex: 1, justifyContent: 'space-evenly' }, sheetCalendarDays: { fontSize: 9, lineHeight: 11, fontVariant: ['tabular-nums'] }, sheetCalendarEvent: { fontSize: 8, marginTop: 1 }, sheetActions: { flexDirection: 'row', gap: 10, marginTop: 16 }, customizeButton: { flex: 1, minHeight: 52, borderRadius: 14, borderWidth: 1, borderColor: '#504B6A', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }, customizeButtonText: { color: '#E8E6DE', fontSize: 12, fontWeight: '700' }, addScreenButton: { flex: 1.25, minHeight: 52, borderRadius: 14, backgroundColor: '#8C6CFF', alignItems: 'center', justifyContent: 'center' }, addScreenButtonText: { color: '#15131F', fontSize: 12, fontWeight: '800' },
   eventPickerSheet: { backgroundColor: '#1C1A28', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: '#302B42', paddingHorizontal: 22, paddingTop: 10, paddingBottom: 22, maxHeight: '76%' }, eventList: { marginTop: 14 }, eventOption: { minHeight: 62, borderBottomWidth: 1, borderBottomColor: '#282339', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, eventOptionCopy: { flex: 1, paddingVertical: 11, paddingRight: 12 }, calendarCheck: { color: '#8C6CFF', fontWeight: '800', fontSize: 16 }, calendarPickButton: { color: '#8C6CFF', fontSize: 11, fontWeight: '700', marginTop: 12 }, closeSheetButton: { height: 46, marginTop: 14, backgroundColor: '#8C6CFF', borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, closeSheetText: { color: '#15131F', fontWeight: '800', fontSize: 12 },

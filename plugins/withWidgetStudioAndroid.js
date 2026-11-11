@@ -153,6 +153,16 @@ module.exports = function withWidgetStudioAndroid(config) {
         `$1\n  private val healthPermissionLauncher = registerForActivityResult(\n    PermissionController.createRequestPermissionResultContract()\n  ) { granted ->\n    val promise = HealthPermissionBridge.pendingPromise\n    val required = HealthPermissionBridge.requiredPermissions\n    HealthPermissionBridge.pendingPromise = null\n    promise?.resolve(required.isNotEmpty() && granted.containsAll(required))\n  }\n\n  fun launchHealthPermissionRequest(permissions: Set<String>) {\n    healthPermissionLauncher.launch(permissions)\n  }\n`,
       );
     }
+    if (!mod.modResults.contents.includes('imagePickerLauncher')) {
+      mod.modResults.contents = mod.modResults.contents.replace(
+        /(import android\.content\.Intent\n)/,
+        `$1import android.net.Uri\nimport androidx.activity.result.contract.ActivityResultContracts\n`,
+      );
+      mod.modResults.contents = mod.modResults.contents.replace(
+        /(fun launchHealthPermissionRequest\(permissions: Set<String>\) \{\n\s*healthPermissionLauncher\.launch\(permissions\)\n\s*\}\n)/,
+        `$1\n  private val imagePickerLauncher = registerForActivityResult(\n    ActivityResultContracts.OpenDocument()\n  ) { uri: Uri? -> ImagePickerBridge.deliver(this, uri) }\n\n  fun launchImagePicker() {\n    imagePickerLauncher.launch(arrayOf("image/*"))\n  }\n`,
+      );
+    }
     return mod;
   });
 
@@ -166,10 +176,17 @@ module.exports = function withWidgetStudioAndroid(config) {
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.WallpaperManager
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -205,6 +222,34 @@ const val UPDATE_REPO = "chaitanyakreddysomu/widgets-app"
 object HealthPermissionBridge {
   var pendingPromise: Promise? = null
   var requiredPermissions: Set<String> = emptySet()
+}
+
+object ImagePickerBridge {
+  var pendingPromise: Promise? = null
+
+  fun deliver(activity: android.app.Activity, uri: Uri?) {
+    val promise = pendingPromise
+    pendingPromise = null
+    if (promise == null) return
+    if (uri == null) { promise.resolve(null); return }
+    Thread {
+      try {
+        val input = activity.contentResolver.openInputStream(uri)
+        if (input == null) { promise.reject("PICK_FAILED", "Could not open the selected image."); return@Thread }
+        val file = File(activity.cacheDir, "wallpaper_pick_\${System.currentTimeMillis()}.jpg")
+        input.use { stream -> FileOutputStream(file).use { output -> stream.copyTo(output) } }
+        promise.resolve(file.absolutePath)
+      } catch (error: Exception) {
+        promise.reject("PICK_FAILED", error.message, error)
+      }
+    }.start()
+  }
+}
+
+private fun wallpaperFlags(target: String): Int = when (target) {
+  "home" -> WallpaperManager.FLAG_SYSTEM
+  "lock" -> WallpaperManager.FLAG_LOCK
+  else -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
 }
 
 class WidgetStudioNativePackage : ReactPackage {
@@ -410,6 +455,63 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
         val totalMinutes = records.sumOf { Duration.between(it.startTime, it.endTime).toMinutes() }
         promise.resolve(totalMinutes.toString())
       } catch (error: Exception) { promise.reject("SLEEP_FAILED", error.message, error) }
+    }
+  }
+
+  @ReactMethod fun pickWallpaperImage(promise: Promise) {
+    val activity = reactApplicationContext.currentActivity as? MainActivity
+    if (activity == null) { promise.reject("NO_ACTIVITY", "Bring Customize Studio to the foreground and try again."); return }
+    ImagePickerBridge.pendingPromise = promise
+    activity.runOnUiThread { activity.launchImagePicker() }
+  }
+
+  @ReactMethod fun setWallpaperFromPath(path: String, target: String, promise: Promise) {
+    Thread {
+      try {
+        val bitmap = BitmapFactory.decodeFile(path) ?: throw IllegalStateException("Could not read the selected image.")
+        val manager = WallpaperManager.getInstance(reactApplicationContext)
+        manager.setBitmap(bitmap, null, true, wallpaperFlags(target))
+        promise.resolve(true)
+      } catch (error: Exception) { promise.reject("WALLPAPER_FAILED", error.message, error) }
+    }.start()
+  }
+
+  @ReactMethod fun setGradientWallpaper(colors: ReadableArray, target: String, promise: Promise) {
+    Thread {
+      try {
+        val parsed = colors.toArrayList().map { Color.parseColor(it.toString()) }.toIntArray()
+        val manager = WallpaperManager.getInstance(reactApplicationContext)
+        val width = manager.desiredMinimumWidth.takeIf { it > 0 } ?: 1080
+        val height = manager.desiredMinimumHeight.takeIf { it > 0 } ?: 1920
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val gradientShader = LinearGradient(0f, 0f, 0f, height.toFloat(), parsed, null, Shader.TileMode.CLAMP)
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), Paint().apply { shader = gradientShader })
+        manager.setBitmap(bitmap, null, true, wallpaperFlags(target))
+        promise.resolve(true)
+      } catch (error: Exception) { promise.reject("WALLPAPER_FAILED", error.message, error) }
+    }.start()
+  }
+
+  @ReactMethod fun openLiveWallpaperPicker(promise: Promise) {
+    try {
+      val intent = Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      reactApplicationContext.startActivity(intent)
+      promise.resolve(true)
+    } catch (error: Exception) { promise.reject("LIVE_WALLPAPER_UNAVAILABLE", error.message, error) }
+  }
+
+  @ReactMethod fun openWallpaperSettings(promise: Promise) {
+    try {
+      val intent = Intent(Settings.ACTION_WALLPAPER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      reactApplicationContext.startActivity(intent)
+      promise.resolve(true)
+    } catch (error: Exception) {
+      try {
+        val fallback = Intent(Intent.ACTION_SET_WALLPAPER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        reactApplicationContext.startActivity(fallback)
+        promise.resolve(true)
+      } catch (fallbackError: Exception) { promise.reject("SETTINGS_UNAVAILABLE", fallbackError.message, fallbackError) }
     }
   }
 }

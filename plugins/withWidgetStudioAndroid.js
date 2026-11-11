@@ -99,6 +99,17 @@ module.exports = function withWidgetStudioAndroid(config) {
         'intent-filter': [{ action: [{ $: { 'android:name': 'android.service.quicksettings.action.QS_TILE' } }] }],
       });
     }
+    if (!application.service.some((item) => item.$['android:name'] === '.DepthWallpaperService')) {
+      application.service.push({
+        $: {
+          'android:name': '.DepthWallpaperService',
+          'android:exported': 'true',
+          'android:permission': 'android.permission.BIND_WALLPAPER',
+        },
+        'intent-filter': [{ action: [{ $: { 'android:name': 'android.service.wallpaper.WallpaperService' } }] }],
+        'meta-data': [{ $: { 'android:name': 'android.service.wallpaper', 'android:resource': '@xml/depth_wallpaper' } }],
+      });
+    }
     return mod;
   });
 
@@ -109,6 +120,7 @@ module.exports = function withWidgetStudioAndroid(config) {
     ensureString(mod, 'shortcut_settings_long_label', 'Open Studio settings');
     ensureString(mod, 'quick_settings_tile_label', 'Widget Studio');
     ensureString(mod, 'notification_channel_name', 'Widget Studio');
+    ensureString(mod, 'depth_wallpaper_description', 'Customize Studio depth wallpaper, with a cut-out subject that shifts over a blurred background.');
     return mod;
   });
 
@@ -116,7 +128,7 @@ module.exports = function withWidgetStudioAndroid(config) {
     if (!mod.modResults.contents.includes('androidx.core:core-ktx')) {
       mod.modResults.contents = mod.modResults.contents.replace(
         /(implementation\("com\.facebook\.react:react-android"\))/,
-        '$1\n    implementation("androidx.core:core-ktx:1.13.1")\n    implementation("androidx.health.connect:connect-client:1.1.0")\n    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")',
+        '$1\n    implementation("androidx.core:core-ktx:1.13.1")\n    implementation("androidx.health.connect:connect-client:1.1.0")\n    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")\n    implementation("com.google.mlkit:subject-segmentation:16.0.0-beta1")\n    implementation("com.google.android.gms:play-services-tasks:18.2.0")',
       );
     }
     return mod;
@@ -200,6 +212,11 @@ import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
+import com.google.mlkit.vision.segmentation.subject.SubjectSegmentationResult
+import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.*
 import com.facebook.react.uimanager.ViewManager
@@ -250,6 +267,13 @@ private fun wallpaperFlags(target: String): Int = when (target) {
   "home" -> WallpaperManager.FLAG_SYSTEM
   "lock" -> WallpaperManager.FLAG_LOCK
   else -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
+}
+
+private fun blurredDownscale(bitmap: Bitmap): Bitmap {
+  val smallWidth = (bitmap.width / 16).coerceAtLeast(1)
+  val smallHeight = (bitmap.height / 16).coerceAtLeast(1)
+  val small = Bitmap.createScaledBitmap(bitmap, smallWidth, smallHeight, true)
+  return Bitmap.createScaledBitmap(small, bitmap.width, bitmap.height, true)
 }
 
 class WidgetStudioNativePackage : ReactPackage {
@@ -514,6 +538,165 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
       } catch (fallbackError: Exception) { promise.reject("SETTINGS_UNAVAILABLE", fallbackError.message, fallbackError) }
     }
   }
+
+  @ReactMethod fun segmentWallpaperSubject(path: String, promise: Promise) {
+    Thread {
+      try {
+        val original = BitmapFactory.decodeFile(path) ?: throw IllegalStateException("Could not read the selected image.")
+        val options = SubjectSegmenterOptions.Builder().enableForegroundBitmap().build()
+        val segmenter = SubjectSegmentation.getClient(options)
+        val result: SubjectSegmentationResult = Tasks.await(segmenter.process(InputImage.fromBitmap(original, 0)))
+        val foreground = result.foregroundBitmap ?: throw IllegalStateException("No subject was found in this photo.")
+        val background = blurredDownscale(original)
+        val stamp = System.currentTimeMillis()
+        val fgFile = File(reactApplicationContext.cacheDir, "depth_fg_\${stamp}.png")
+        val bgFile = File(reactApplicationContext.cacheDir, "depth_bg_\${stamp}.jpg")
+        FileOutputStream(fgFile).use { foreground.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        FileOutputStream(bgFile).use { background.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        promise.resolve(Arguments.createMap().apply {
+          putString("foregroundPath", fgFile.absolutePath)
+          putString("backgroundPath", bgFile.absolutePath)
+        })
+      } catch (error: Exception) { promise.reject("SEGMENT_FAILED", error.message, error) }
+    }.start()
+  }
+
+  @ReactMethod fun setDepthWallpaperLayers(foregroundPath: String, backgroundPath: String, promise: Promise) {
+    try {
+      reactApplicationContext.getSharedPreferences("depth_wallpaper", 0).edit()
+        .putString("foreground", foregroundPath)
+        .putString("background", backgroundPath)
+        .apply()
+      promise.resolve(true)
+    } catch (error: Exception) { promise.reject("DEPTH_SAVE_FAILED", error.message, error) }
+  }
+
+  @ReactMethod fun openDepthWallpaperPicker(promise: Promise) {
+    try {
+      val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+        putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, ComponentName(reactApplicationContext, DepthWallpaperService::class.java))
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      reactApplicationContext.startActivity(intent)
+      promise.resolve(true)
+    } catch (error: Exception) { promise.reject("DEPTH_PICKER_UNAVAILABLE", error.message, error) }
+  }
+}
+`);
+    fs.writeFileSync(path.join(sourceDir, 'DepthWallpaperService.kt'), `package ${packageName}
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.os.Handler
+import android.os.Looper
+import android.service.wallpaper.WallpaperService
+import android.view.SurfaceHolder
+
+// Real parallax "depth" wallpaper: a foreground subject (cut out on-device via
+// ML Kit subject segmentation) floats over a blurred background. Shifts come
+// from the launcher's home-screen paging offset AND the accelerometer, the
+// same two motion sources Samsung/Pixel depth wallpapers react to.
+class DepthWallpaperService : WallpaperService() {
+  override fun onCreateEngine(): Engine = DepthEngine()
+
+  inner class DepthEngine : Engine(), SensorEventListener {
+    private val handler = Handler(Looper.getMainLooper())
+    private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+    private val prefs by lazy { getSharedPreferences("depth_wallpaper", MODE_PRIVATE) }
+    private val sensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
+    private var foreground: Bitmap? = null
+    private var background: Bitmap? = null
+    private var pageOffset = 0f
+    private var tiltX = 0f
+    private var tiltY = 0f
+    private var running = false
+    private val drawRunner = Runnable { draw() }
+
+    private fun loadLayers() {
+      foreground = prefs.getString("foreground", null)?.let { BitmapFactory.decodeFile(it) }
+      background = prefs.getString("background", null)?.let { BitmapFactory.decodeFile(it) }
+    }
+
+    private fun drawLayer(canvas: Canvas, bitmap: Bitmap, shiftX: Float, shiftY: Float) {
+      val canvasWidth = canvas.width.toFloat()
+      val canvasHeight = canvas.height.toFloat()
+      val scale = maxOf(canvasWidth / bitmap.width, canvasHeight / bitmap.height)
+      val scaledWidth = bitmap.width * scale
+      val scaledHeight = bitmap.height * scale
+      val left = (canvasWidth - scaledWidth) / 2f + shiftX
+      val top = (canvasHeight - scaledHeight) / 2f + shiftY
+      canvas.drawBitmap(bitmap, null, RectF(left, top, left + scaledWidth, top + scaledHeight), paint)
+    }
+
+    private fun draw() {
+      val holder = surfaceHolder
+      var canvas: Canvas? = null
+      try {
+        canvas = holder.lockCanvas()
+        if (canvas != null) {
+          canvas.drawColor(Color.BLACK)
+          val width = canvas.width.toFloat()
+          val height = canvas.height.toFloat()
+          val pagingShiftX = -pageOffset * width * 0.06f
+          val tiltShiftX = tiltX * width * 0.02f
+          val tiltShiftY = tiltY * height * 0.012f
+          background?.let { drawLayer(canvas, it, pagingShiftX * 0.4f, 0f) }
+          foreground?.let { drawLayer(canvas, it, pagingShiftX + tiltShiftX, tiltShiftY) }
+        }
+      } finally {
+        if (canvas != null) holder.unlockCanvasAndPost(canvas)
+      }
+      handler.removeCallbacks(drawRunner)
+      if (running) handler.postDelayed(drawRunner, 32)
+    }
+
+    override fun onSurfaceCreated(holder: SurfaceHolder) {
+      super.onSurfaceCreated(holder)
+      loadLayers()
+    }
+
+    override fun onVisibilityChanged(visible: Boolean) {
+      running = visible
+      if (visible) {
+        loadLayers()
+        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let { sensor ->
+          sensorManager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_UI)
+        }
+        handler.post(drawRunner)
+      } else {
+        sensorManager.unregisterListener(this)
+        handler.removeCallbacks(drawRunner)
+      }
+    }
+
+    override fun onOffsetsChanged(xOffset: Float, yOffset: Float, xStep: Float, yStep: Float, xPixelOffset: Int, yPixelOffset: Int) {
+      pageOffset = xOffset
+      draw()
+    }
+
+    override fun onSensorChanged(event: SensorEvent) {
+      if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+      tiltX = (event.values[0] / 9.81f).coerceIn(-1f, 1f)
+      tiltY = (event.values[1] / 9.81f).coerceIn(-1f, 1f)
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
+
+    override fun onSurfaceDestroyed(holder: SurfaceHolder) {
+      super.onSurfaceDestroyed(holder)
+      running = false
+      sensorManager.unregisterListener(this)
+      handler.removeCallbacks(drawRunner)
+    }
+  }
 }
 `);
     fs.writeFileSync(path.join(sourceDir, 'WidgetStudioTileService.kt'), `package ${packageName}
@@ -587,6 +770,10 @@ class WidgetStudioTileService : TileService() {
     fs.writeFileSync(path.join(xmlDir, 'file_paths.xml'), `<paths xmlns:android="http://schemas.android.com/apk/res/android">
   <cache-path name="updates" path="." />
 </paths>
+`);
+    fs.writeFileSync(path.join(xmlDir, 'depth_wallpaper.xml'), `<wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
+  android:thumbnail="@mipmap/ic_launcher"
+  android:description="@string/depth_wallpaper_description" />
 `);
     for (const fileName of fs.readdirSync(xmlDir).filter((name) => name.endsWith('_info.xml'))) {
       const widgetInfoPath = path.join(xmlDir, fileName);

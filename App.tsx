@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert, Animated, Easing, Modal, Platform, StatusBar, TextInput, View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions,
+  Alert, AppState, Animated, Easing, Modal, PermissionsAndroid, Platform, StatusBar, TextInput, View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -99,6 +99,8 @@ type StudioNative = {
   getAvailableWidgetSlot: (names: string[]) => Promise<string | null>;
   getBuildVersion: () => Promise<string>;
   getStorageInfo: () => Promise<StorageInfo>;
+  getLaunchShortcutAction: () => Promise<string | null>;
+  showStyledNotification: (title: string, message: string, accentColorHex: string) => Promise<boolean>;
 };
 const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
 const widgetSlotNames = ['StudioWidget', ...Array.from({ length: 11 }, (_, index) => `StudioWidget${index + 2}`)];
@@ -184,6 +186,7 @@ function WidgetStudio() {
   const [clockNow, setClockNow] = useState(Date.now());
   const [stepGoal, setStepGoal] = useState(10000);
   const [stepStyle, setStepStyle] = useState('Step ring');
+  const [buildVersion, setBuildVersion] = useState<string | null>(null);
   const activePosition = useRef(new Animated.Value(0)).current;
   const pageOpacity = useRef(new Animated.Value(1)).current;
   const pageOffset = useRef(new Animated.Value(0)).current;
@@ -193,6 +196,22 @@ function WidgetStudio() {
     const timer = setInterval(() => setClockNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [tab]);
+  useEffect(() => {
+    const applyShortcutAction = async () => {
+      if (Platform.OS !== 'android' || !StudioAndroid) return;
+      try {
+        const action = await StudioAndroid.getLaunchShortcutAction();
+        if (action === 'create_widget') startFromScratch();
+        else if (action === 'open_settings') setTab('Settings');
+      } catch { }
+    };
+    applyShortcutAction();
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') applyShortcutAction(); });
+    return () => subscription.remove();
+  }, []);
+  useEffect(() => {
+    if (Platform.OS === 'android' && StudioAndroid) StudioAndroid.getBuildVersion().then(setBuildVersion).catch(() => {});
+  }, []);
   const cardWidth = (width - 52) / 2;
   const filtered = category === 'All widgets' ? widgets : category === 'Clock Analog' ? widgets.filter((w) => w.id.startsWith('clock-analog')) : category === 'Clock Digital' ? widgets.filter((w) => w.id.startsWith('clock-digital')) : widgets.filter((w) => w.type === category || (category === 'Health' && w.type === 'Health'));
   const sizeLabel = layoutMode === 'Adaptive' ? 'Adaptive' : `${fixedWidth} × ${fixedHeight}`;
@@ -278,6 +297,22 @@ function WidgetStudio() {
 
   const openCalendarPicker = async () => {
     if (await ensureCalendarAccess()) await loadCalendarEvents();
+  };
+
+  const sendTestNotification = async () => {
+    if (Platform.OS !== 'android' || !StudioAndroid) { Alert.alert('Not available', 'Notifications are only wired up for Android right now.'); return; }
+    try {
+      if (Platform.Version >= 33) {
+        const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert('Notifications not allowed', 'Enable notifications for Widget Studio in your device settings to see styled alerts.');
+          return;
+        }
+      }
+      await StudioAndroid.showStyledNotification('Widget Studio', 'This is what a styled notification from your app looks like.', selected.accent);
+    } catch {
+      Alert.alert('Could not send notification', 'Something went wrong sending the test notification.');
+    }
   };
 
   const refreshSelectedData = async (widget: Widget = selected): Promise<Partial<Widget>> => {
@@ -444,7 +479,13 @@ function WidgetStudio() {
             <View style={styles.divider} />
             <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Saved design</Text><Text style={styles.controlSub}>{saved ? selected.title : 'No saved widget yet'}</Text></View><Text style={styles.settingsValue}>{saved ? '✓' : '♡'}</Text></View>
             <View style={styles.divider} />
-            <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Widget Studio</Text><Text style={styles.controlSub}>Expo SDK 58.0.5</Text></View><Text style={styles.settingsValue}>✳</Text></View>
+            <Pressable onPress={sendTestNotification} style={styles.settingsRow}><View><Text style={styles.controlTitle}>Notifications</Text><Text style={styles.controlSub}>Send a styled test notification</Text></View><Text style={styles.settingsChevron}>›</Text></Pressable>
+            <View style={styles.divider} />
+            <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Quick Settings tile</Text><Text style={styles.controlSub}>Add the Widget Studio tile from your quick settings edit screen</Text></View><Text style={styles.settingsValue}>▦</Text></View>
+            <View style={styles.divider} />
+            <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>App shortcuts</Text><Text style={styles.controlSub}>Long-press the app icon for quick actions</Text></View><Text style={styles.settingsValue}>↗</Text></View>
+            <View style={styles.divider} />
+            <View style={styles.settingsRow}><View><Text style={styles.controlTitle}>Widget Studio</Text><Text style={styles.controlSub}>Version {buildVersion ?? '1.0.2'}</Text></View><Text style={styles.settingsValue}>✳</Text></View>
           </View>
         )}
         {tab === 'Customize' && <View style={styles.previewShell}>

@@ -26,13 +26,6 @@
     "plugins": [
       "./plugins/withWidgetStudioAndroid",
       [
-        "expo-calendar",
-        {
-          "calendarPermission": "Widget Studio needs read access so you can choose one event for your calendar widget.",
-          "remindersPermission": false
-        }
-      ],
-      [
         "expo-widgets",
         {
           "enableAndroid": true,

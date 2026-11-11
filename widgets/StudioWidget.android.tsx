@@ -18,27 +18,6 @@ type StudioWidgetProps = {
   clockHandColors: ClockHandColors; analogClockStyle: string; digitalClockStyle: string;
 };
 
-// Glance (the Android home-screen widget renderer) only supports a fixed
-// modifier set: padding, size, fillMax, background, and cornerRadius.
-// clip(Shapes...), border(), and rotate() are app-UI-only modifiers that are
-// silently ignored in the widget runtime, so widget shapes use cornerRadius
-// and analog clocks fall back to a digital time readout (no rotating hands
-// is possible on a real home-screen widget).
-const shapeCornerRadius = (shape: string): number => {
-  switch (shape) {
-    case 'Circle':
-    case 'Pill': return 999;
-    case 'Square':
-    case 'Cut corner': return 4;
-    case 'Squircle': return 32;
-    case 'Diamond':
-    case 'Heart':
-    case 'Arch':
-    case 'Hexagon': return 20;
-    default: return 22;
-  }
-};
-
 const StudioWidget = (props: StudioWidgetProps) => {
   'widget';
   const alignmentFor = (x: number, y: number): ContentAlignment => {
@@ -46,6 +25,26 @@ const StudioWidget = (props: StudioWidgetProps) => {
     const vertical = y < 34 ? 'top' : y > 66 ? 'bottom' : 'center';
     if (vertical === 'center' && horizontal === 'Center') return 'center';
     return `${vertical}${horizontal}` as ContentAlignment;
+  };
+  // Glance (the Android home-screen widget renderer) only supports a fixed
+  // modifier set: padding, size, fillMax, background, and cornerRadius.
+  // clip(Shapes...), border(), and rotate() are app-UI-only modifiers that are
+  // silently ignored in the widget runtime, so widget shapes use cornerRadius
+  // and analog clocks fall back to a digital time readout (no rotating hands
+  // is possible on a real home-screen widget).
+  const shapeCornerRadius = (shape: string): number => {
+    switch (shape) {
+      case 'Circle':
+      case 'Pill': return 999;
+      case 'Square':
+      case 'Cut corner': return 4;
+      case 'Squircle': return 32;
+      case 'Diamond':
+      case 'Heart':
+      case 'Arch':
+      case 'Hexagon': return 20;
+      default: return 22;
+    }
   };
   const widgetCornerRadius = shapeCornerRadius(props.shape);
   const glass = props.theme === 'Liquid Glass';

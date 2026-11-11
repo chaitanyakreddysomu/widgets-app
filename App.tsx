@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert, AppState, Animated, Easing, Image, Modal, PermissionsAndroid, Platform, StatusBar, TextInput, View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions,
+  Alert, AppState, Animated, Easing, Image, Modal, PanResponder, PermissionsAndroid, Platform, StatusBar, TextInput, View, Text, ScrollView, Pressable, StyleSheet, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -185,7 +185,7 @@ type StudioNative = {
   openLiveWallpaperPicker: () => Promise<boolean>;
   openWallpaperSettings: () => Promise<boolean>;
   segmentWallpaperSubject: (path: string) => Promise<{ foregroundPath: string; backgroundPath: string }>;
-  setDepthWallpaperConfig: (foregroundPath: string, backgroundPath: string, clockEnabled: boolean, clockFont: string, clockBehindSubject: boolean) => Promise<boolean>;
+  setDepthWallpaperConfig: (foregroundPath: string, backgroundPath: string, config: DepthWallpaperConfig) => Promise<boolean>;
   openDepthWallpaperPicker: () => Promise<boolean>;
 };
 const StudioAndroid = NativeModules.WidgetStudioNative as StudioNative | undefined;
@@ -193,6 +193,13 @@ const depthClockFonts = ['Sans', 'Serif', 'Monospace', 'Condensed', 'Light'] as 
 type DepthClockFont = (typeof depthClockFonts)[number];
 const depthClockFontFamilies: Record<DepthClockFont, string | undefined> = {
   Sans: undefined, Serif: 'serif', Monospace: 'monospace', Condensed: 'sans-serif-condensed', Light: 'sans-serif-light',
+};
+type DepthOverlayPos = { x: number; y: number };
+const defaultDepthClockPos: DepthOverlayPos = { x: 0.5, y: 0.22 };
+const defaultDepthDatePos: DepthOverlayPos = { x: 0.5, y: 0.34 };
+type DepthWallpaperConfig = {
+  clockEnabled: boolean; clockFont: string; clockBehindSubject: boolean; clockSize: number;
+  clockX: number; clockY: number; showDate: boolean; dateX: number; dateY: number;
 };
 const wallpaperGradientPresets = [
   { id: 'dusk', name: 'Dusk Violet', colors: ['#2B2250', '#8C6CFF'] },
@@ -299,6 +306,11 @@ function WidgetStudio() {
   const [depthClockEnabled, setDepthClockEnabled] = useState(false);
   const [depthClockFont, setDepthClockFont] = useState<DepthClockFont>('Sans');
   const [depthClockBehindSubject, setDepthClockBehindSubject] = useState(false);
+  const [depthClockSize, setDepthClockSize] = useState(100);
+  const [depthShowDate, setDepthShowDate] = useState(false);
+  const [depthClockPos, setDepthClockPos] = useState<DepthOverlayPos>(defaultDepthClockPos);
+  const [depthDatePos, setDepthDatePos] = useState<DepthOverlayPos>(defaultDepthDatePos);
+  const [depthPreviewSize, setDepthPreviewSize] = useState({ width: 0, height: 0 });
   const [section, setSection] = useState<SectionId>('widgets');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [genericTab, setGenericTab] = useState<GenericTabName>('Presets');
@@ -556,6 +568,8 @@ function WidgetStudio() {
     try {
       const layers = await StudioAndroid.segmentWallpaperSubject(pickedWallpaperPath);
       setDepthLayers(layers);
+      setDepthClockPos(defaultDepthClockPos);
+      setDepthDatePos(defaultDepthDatePos);
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       Alert.alert('Could not find a subject', message || 'Try a photo with a clearer foreground subject.');
@@ -567,7 +581,10 @@ function WidgetStudio() {
   const applyDepthWallpaper = async () => {
     if (!StudioAndroid || !depthLayers) return;
     try {
-      await StudioAndroid.setDepthWallpaperConfig(depthLayers.foregroundPath, depthLayers.backgroundPath, depthClockEnabled, depthClockFont, depthClockBehindSubject);
+      await StudioAndroid.setDepthWallpaperConfig(depthLayers.foregroundPath, depthLayers.backgroundPath, {
+        clockEnabled: depthClockEnabled, clockFont: depthClockFont, clockBehindSubject: depthClockBehindSubject, clockSize: depthClockSize / 100,
+        clockX: depthClockPos.x, clockY: depthClockPos.y, showDate: depthShowDate, dateX: depthDatePos.x, dateY: depthDatePos.y,
+      });
       await StudioAndroid.openDepthWallpaperPicker();
     } catch {
       Alert.alert('Could not open live wallpaper picker', 'Try again from Settings > Wallpaper.');
@@ -843,20 +860,42 @@ function WidgetStudio() {
                   <Text style={[styles.controlSub, { marginTop: 10 }]}>Choose a photo above first.</Text>
                 )}
                 {depthLayers && <>
-                  <View style={styles.wallpaperDepthPreview}>
+                  <View
+                    style={styles.wallpaperDepthPreview}
+                    onLayout={(event) => setDepthPreviewSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}
+                  >
                     <Image source={{ uri: depthLayers.backgroundPath }} style={styles.wallpaperDepthLayer} blurRadius={2} />
-                    {depthClockEnabled && depthClockBehindSubject && <Text style={[styles.wallpaperDepthClock, { fontFamily: depthClockFontFamilies[depthClockFont] }]}>12:45</Text>}
+                    {depthClockBehindSubject && <>
+                      {depthClockEnabled && <DraggableOverlay pos={depthClockPos} onChange={setDepthClockPos} containerWidth={depthPreviewSize.width} containerHeight={depthPreviewSize.height}>
+                        <Text style={[styles.wallpaperDepthClock, { fontFamily: depthClockFontFamilies[depthClockFont], fontSize: 34 * (depthClockSize / 100) }]}>12:45</Text>
+                      </DraggableOverlay>}
+                      {depthShowDate && <DraggableOverlay pos={depthDatePos} onChange={setDepthDatePos} containerWidth={depthPreviewSize.width} containerHeight={depthPreviewSize.height}>
+                        <Text style={[styles.wallpaperDepthDate, { fontFamily: depthClockFontFamilies[depthClockFont], fontSize: 13 * (depthClockSize / 100) }]}>Mon, Jan 1</Text>
+                      </DraggableOverlay>}
+                    </>}
                     <Image source={{ uri: depthLayers.foregroundPath }} style={styles.wallpaperDepthLayer} resizeMode="contain" />
-                    {depthClockEnabled && !depthClockBehindSubject && <Text style={[styles.wallpaperDepthClock, { fontFamily: depthClockFontFamilies[depthClockFont] }]}>12:45</Text>}
+                    {!depthClockBehindSubject && <>
+                      {depthClockEnabled && <DraggableOverlay pos={depthClockPos} onChange={setDepthClockPos} containerWidth={depthPreviewSize.width} containerHeight={depthPreviewSize.height}>
+                        <Text style={[styles.wallpaperDepthClock, { fontFamily: depthClockFontFamilies[depthClockFont], fontSize: 34 * (depthClockSize / 100) }]}>12:45</Text>
+                      </DraggableOverlay>}
+                      {depthShowDate && <DraggableOverlay pos={depthDatePos} onChange={setDepthDatePos} containerWidth={depthPreviewSize.width} containerHeight={depthPreviewSize.height}>
+                        <Text style={[styles.wallpaperDepthDate, { fontFamily: depthClockFontFamilies[depthClockFont], fontSize: 13 * (depthClockSize / 100) }]}>Mon, Jan 1</Text>
+                      </DraggableOverlay>}
+                    </>}
                   </View>
+                  <Text style={[styles.controlSub, { marginTop: 8 }]}>Drag the clock or date anywhere on the preview.</Text>
                   <View style={{ marginTop: 10 }}>
                     <ToggleRow label="Show clock" value={depthClockEnabled} onChange={setDepthClockEnabled} />
                   </View>
                   {depthClockEnabled && <>
                     <Text style={[styles.controlTitle, { marginTop: 10 }]}>Clock font</Text>
                     <OptionPicker options={[...depthClockFonts]} value={depthClockFont} onSelect={(value) => setDepthClockFont(value as DepthClockFont)} />
+                    <StepperControl label="Size" value={depthClockSize} unit="%" min={50} max={200} step={10} onChange={setDepthClockSize} />
                     <ToggleRow label="Clock behind subject" value={depthClockBehindSubject} onChange={setDepthClockBehindSubject} />
                   </>}
+                  <View style={{ marginTop: 10 }}>
+                    <ToggleRow label="Show date" value={depthShowDate} onChange={setDepthShowDate} />
+                  </View>
                   <Pressable onPress={applyDepthWallpaper} style={[styles.addHomeButton, { marginTop: 12 }]}>
                     <Text style={styles.addHomeIcon}>▶</Text><View style={{ flex: 1 }}><Text style={styles.addHomeTitle}>Set as live wallpaper</Text></View><Text style={styles.addHomeArrow}>↗</Text>
                   </Pressable>
@@ -1176,6 +1215,40 @@ function ToggleRow({ label, value, onChange }: { label: string; value: boolean; 
   return <Pressable onPress={() => onChange(!value)} style={styles.toggleRow}><Text style={styles.stepperLabel}>{label}</Text><View style={[styles.toggleTrack, value && styles.toggleTrackActive]}><View style={[styles.toggleThumb, value && styles.toggleThumbActive]} /></View></Pressable>;
 }
 
+function DraggableOverlay({
+  pos, onChange, containerWidth, containerHeight, children,
+}: { pos: { x: number; y: number }; onChange: (pos: { x: number; y: number }) => void; containerWidth: number; containerHeight: number; children: React.ReactNode }) {
+  const posRef = useRef(pos);
+  posRef.current = pos;
+  const sizeRef = useRef({ width: containerWidth, height: containerHeight });
+  sizeRef.current = { width: containerWidth, height: containerHeight };
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const start = useRef(pos);
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => { start.current = posRef.current; },
+      onPanResponderMove: (_event, gesture) => {
+        const { width, height } = sizeRef.current;
+        if (!width || !height) return;
+        onChangeRef.current({
+          x: Math.min(1, Math.max(0, start.current.x + gesture.dx / width)),
+          y: Math.min(1, Math.max(0, start.current.y + gesture.dy / height)),
+        });
+      },
+    }),
+  ).current;
+  return (
+    <View
+      {...panResponder.panHandlers}
+      style={[styles.depthDragHandle, { left: pos.x * containerWidth - 80, top: pos.y * containerHeight - 16 }]}
+    >
+      {children}
+    </View>
+  );
+}
+
 function AnalogClockSample({ style, large, tint, date, zone, handColors = defaultClockHandColors }: { style: string; large: boolean; tint: string; date: Date; zone: string; handColors?: ClockHandColors }) {
   const size = large ? 144 : 78;
   const center = size / 2;
@@ -1308,7 +1381,7 @@ const styles = StyleSheet.create({
   addHomeButton: { minHeight: 66, borderRadius: 15, backgroundColor: '#8C6CFF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, marginTop: 12 }, addHomeIcon: { fontSize: 23, color: '#15131F', fontWeight: '600', marginRight: 12 }, addHomeTitle: { color: '#15131F', fontSize: 12, fontWeight: '800' }, addHomeSub: { color: '#332C52', fontSize: 9, marginTop: 3 }, addHomeArrow: { color: '#15131F', fontSize: 18, fontWeight: '700' },
   settingsCard: { backgroundColor: '#1C1A28', borderRadius: 20, borderWidth: 1, borderColor: '#2A2538', paddingHorizontal: 16, marginTop: 4 }, settingsIntro: { flexDirection: 'row', alignItems: 'center', paddingVertical: 18 }, settingsIntroIcon: { color: '#8C6CFF', fontSize: 24, marginRight: 13 }, settingsRow: { minHeight: 65, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, settingsValue: { color: '#8C6CFF', fontSize: 15, fontWeight: '700', marginRight: 4 }, settingsChevron: { color: '#81809F', fontSize: 23, marginRight: 4 },
   wallpaperSwatchWrap: { width: '30%', alignItems: 'center' }, wallpaperSwatch: { width: '100%', aspectRatio: 0.72, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#332E45' }, wallpaperSwatchCheck: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' }, wallpaperSwatchLabel: { color: '#A6A2C4', fontSize: 9, marginTop: 6, textAlign: 'center' }, wallpaperPreviewImage: { width: '100%', height: 220, borderRadius: 16, marginTop: 12, backgroundColor: '#231F33' },
-  wallpaperDepthPreview: { width: '100%', height: 220, borderRadius: 16, marginTop: 12, backgroundColor: '#0E0C16', overflow: 'hidden', position: 'relative' }, wallpaperDepthLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%' }, wallpaperDepthClock: { position: 'absolute', top: 18, left: 0, right: 0, textAlign: 'center', color: '#F2EEFC', fontSize: 34, fontWeight: '700' },
+  wallpaperDepthPreview: { width: '100%', height: 220, borderRadius: 16, marginTop: 12, backgroundColor: '#0E0C16', overflow: 'hidden', position: 'relative' }, wallpaperDepthLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%' }, depthDragHandle: { position: 'absolute', width: 160, alignItems: 'center' }, wallpaperDepthClock: { color: '#F2EEFC', fontWeight: '700' }, wallpaperDepthDate: { color: '#F2EEFC', fontWeight: '600', marginTop: 2 },
   bottomDock: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center', backgroundColor: 'transparent' }, bottomNav: { alignSelf: 'center', width: 202, height: 62, borderRadius: 31, borderWidth: 1, borderColor: '#332E45', backgroundColor: '#1C1A28', flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', marginTop: 8, marginBottom: 18, paddingHorizontal: 8, shadowColor: '#000000', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 9 }, navActiveCircle: { position: 'absolute', left: 19, top: 8, width: 44, height: 44, borderRadius: 22, backgroundColor: '#8C6CFF' }, navItem: { width: 54, height: 50, borderRadius: 27, alignItems: 'center', justifyContent: 'center' }, navIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, navIcon: { color: '#8E8AAE', fontSize: 20, fontWeight: '600' }, navIconActive: { color: '#15131F' },
   sheetOverlay: { flex: 1, justifyContent: 'flex-end' }, sheetScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.58)' }, widgetSheet: { backgroundColor: '#1C1A28', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: '#302B42', paddingHorizontal: 22, paddingTop: 10, paddingBottom: 30 }, sheetHandle: { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, backgroundColor: '#514C6B', marginBottom: 18 }, sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 }, sheetEyebrow: { color: '#9D99BE', fontSize: 9, letterSpacing: 1.6, fontWeight: '700' }, sheetTitle: { color: '#F2EEFC', fontSize: 20, fontWeight: '700', marginTop: 4 }, sheetClose: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2A2538' }, sheetCloseText: { color: '#C4BDDF', fontSize: 22, lineHeight: 24 }, sheetWidgetPreview: { minHeight: 184, borderRadius: 18, borderWidth: 1, overflow: 'hidden', backgroundColor: '#231F33', padding: 16, justifyContent: 'space-between' }, sheetGlow: { position: 'absolute', width: 150, height: 150, borderRadius: 75, opacity: 0.08, right: -30, top: 15 }, sheetPreviewMeta: { flexDirection: 'row', alignItems: 'center' }, sheetValue: { fontSize: 38, fontWeight: '700', letterSpacing: -1.2 }, sheetSubtitle: { color: '#ADA6CE', fontSize: 11, marginTop: -8 }, sheetCalendarFace: { flex: 1, justifyContent: 'space-evenly' }, sheetCalendarDays: { fontSize: 9, lineHeight: 11, fontVariant: ['tabular-nums'] }, sheetCalendarEvent: { fontSize: 8, marginTop: 1 }, sheetActions: { flexDirection: 'row', gap: 10, marginTop: 16 }, customizeButton: { flex: 1, minHeight: 52, borderRadius: 14, borderWidth: 1, borderColor: '#504B6A', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }, customizeButtonText: { color: '#E8E6DE', fontSize: 12, fontWeight: '700' }, addScreenButton: { flex: 1.25, minHeight: 52, borderRadius: 14, backgroundColor: '#8C6CFF', alignItems: 'center', justifyContent: 'center' }, addScreenButtonText: { color: '#15131F', fontSize: 12, fontWeight: '800' },
   eventPickerSheet: { backgroundColor: '#1C1A28', borderTopLeftRadius: 26, borderTopRightRadius: 26, borderWidth: 1, borderColor: '#302B42', paddingHorizontal: 22, paddingTop: 10, paddingBottom: 22, maxHeight: '76%' }, eventList: { marginTop: 14 }, eventOption: { minHeight: 62, borderBottomWidth: 1, borderBottomColor: '#282339', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, eventOptionCopy: { flex: 1, paddingVertical: 11, paddingRight: 12 }, calendarCheck: { color: '#8C6CFF', fontWeight: '800', fontSize: 16 }, calendarPickButton: { color: '#8C6CFF', fontSize: 11, fontWeight: '700', marginTop: 12 }, closeSheetButton: { height: 46, marginTop: 14, backgroundColor: '#8C6CFF', borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, closeSheetText: { color: '#15131F', fontWeight: '800', fontSize: 12 },

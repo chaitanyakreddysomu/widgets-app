@@ -561,14 +561,20 @@ class WidgetStudioNativeModule(context: ReactApplicationContext) : ReactContextB
     }.start()
   }
 
-  @ReactMethod fun setDepthWallpaperConfig(foregroundPath: String, backgroundPath: String, clockEnabled: Boolean, clockFont: String, clockBehindSubject: Boolean, promise: Promise) {
+  @ReactMethod fun setDepthWallpaperConfig(foregroundPath: String, backgroundPath: String, config: ReadableMap, promise: Promise) {
     try {
       reactApplicationContext.getSharedPreferences("depth_wallpaper", 0).edit()
         .putString("foreground", foregroundPath)
         .putString("background", backgroundPath)
-        .putBoolean("clockEnabled", clockEnabled)
-        .putString("clockFont", clockFont)
-        .putBoolean("clockBehindSubject", clockBehindSubject)
+        .putBoolean("clockEnabled", config.getBoolean("clockEnabled"))
+        .putString("clockFont", config.getString("clockFont") ?: "Sans")
+        .putBoolean("clockBehindSubject", config.getBoolean("clockBehindSubject"))
+        .putFloat("clockSize", config.getDouble("clockSize").toFloat())
+        .putFloat("clockX", config.getDouble("clockX").toFloat())
+        .putFloat("clockY", config.getDouble("clockY").toFloat())
+        .putBoolean("showDate", config.getBoolean("showDate"))
+        .putFloat("dateX", config.getDouble("dateX").toFloat())
+        .putFloat("dateY", config.getDouble("dateY").toFloat())
         .apply()
       promise.resolve(true)
     } catch (error: Exception) { promise.reject("DEPTH_SAVE_FAILED", error.message, error) }
@@ -603,6 +609,7 @@ import android.os.Handler
 import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -617,13 +624,21 @@ class DepthWallpaperService : WallpaperService() {
     private val handler = Handler(Looper.getMainLooper())
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
     private val clockPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textAlign = Paint.Align.CENTER }
+    private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textAlign = Paint.Align.CENTER }
     private val timeFormatter = DateTimeFormatter.ofPattern("h:mm")
+    private val dateFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
     private val prefs by lazy { getSharedPreferences("depth_wallpaper", MODE_PRIVATE) }
     private val sensorManager by lazy { getSystemService(SENSOR_SERVICE) as SensorManager }
     private var foreground: Bitmap? = null
     private var background: Bitmap? = null
     private var clockEnabled = false
     private var clockBehindSubject = false
+    private var clockSize = 1f
+    private var clockX = 0.5f
+    private var clockY = 0.22f
+    private var showDate = false
+    private var dateX = 0.5f
+    private var dateY = 0.34f
     private var pageOffset = 0f
     private var tiltX = 0f
     private var tiltY = 0f
@@ -643,12 +658,25 @@ class DepthWallpaperService : WallpaperService() {
       background = prefs.getString("background", null)?.let { BitmapFactory.decodeFile(it) }
       clockEnabled = prefs.getBoolean("clockEnabled", false)
       clockBehindSubject = prefs.getBoolean("clockBehindSubject", false)
-      clockPaint.typeface = typefaceFor(prefs.getString("clockFont", "Sans") ?: "Sans")
+      clockSize = prefs.getFloat("clockSize", 1f)
+      clockX = prefs.getFloat("clockX", 0.5f)
+      clockY = prefs.getFloat("clockY", 0.22f)
+      showDate = prefs.getBoolean("showDate", false)
+      dateX = prefs.getFloat("dateX", 0.5f)
+      dateY = prefs.getFloat("dateY", 0.34f)
+      val typeface = typefaceFor(prefs.getString("clockFont", "Sans") ?: "Sans")
+      clockPaint.typeface = typeface
+      datePaint.typeface = typeface
     }
 
     private fun drawClock(canvas: Canvas) {
-      clockPaint.textSize = canvas.height * 0.09f
-      canvas.drawText(LocalTime.now().format(timeFormatter), canvas.width / 2f, canvas.height * 0.22f, clockPaint)
+      clockPaint.textSize = canvas.height * 0.09f * clockSize
+      canvas.drawText(LocalTime.now().format(timeFormatter), clockX * canvas.width, clockY * canvas.height, clockPaint)
+    }
+
+    private fun drawDate(canvas: Canvas) {
+      datePaint.textSize = canvas.height * 0.032f * clockSize
+      canvas.drawText(LocalDate.now().format(dateFormatter), dateX * canvas.width, dateY * canvas.height, datePaint)
     }
 
     private fun drawLayer(canvas: Canvas, bitmap: Bitmap, shiftX: Float, shiftY: Float) {
@@ -675,9 +703,15 @@ class DepthWallpaperService : WallpaperService() {
           val tiltShiftX = tiltX * width * 0.02f
           val tiltShiftY = tiltY * height * 0.012f
           background?.let { drawLayer(canvas, it, pagingShiftX * 0.4f, 0f) }
-          if (clockEnabled && clockBehindSubject) drawClock(canvas)
+          if (clockBehindSubject) {
+            if (clockEnabled) drawClock(canvas)
+            if (showDate) drawDate(canvas)
+          }
           foreground?.let { drawLayer(canvas, it, pagingShiftX + tiltShiftX, tiltShiftY) }
-          if (clockEnabled && !clockBehindSubject) drawClock(canvas)
+          if (!clockBehindSubject) {
+            if (clockEnabled) drawClock(canvas)
+            if (showDate) drawDate(canvas)
+          }
         }
       } finally {
         if (canvas != null) holder.unlockCanvasAndPost(canvas)
